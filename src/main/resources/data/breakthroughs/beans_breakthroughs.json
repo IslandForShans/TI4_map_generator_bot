@@ -61,11 +61,14 @@
     },
     {
         "alias": "netrunnersbt",
-        "name": "Data Breach",
-        "shortName": "Data\nBreach",
+        "name": "Emotet",
+        "shortName": "Emotet",
         "faction": "netrunners",
-        "synergy": ["NONE"],
-        "text": "When you unlock this breakthrough, place one of your control tokens on another player's breakthrough. Your breakthrough has synergy in the colors on the breakthrough your control token is on. At the end of your turn you may exhaust this card and spend a token from your strategy pool to gain the technology affected by your Proxy Network ability.",
+        "synergy": [
+            "CYBERNETIC",
+            "WARFARE"
+        ],
+        "text": "ACTION: Exhaust this card to allow another player to spend 2 trade goods to research 1 non-faction technology. If they do, you may return that player's control token from your faction sheet to gain that technology and place 1 infantry into coexistence on a planet they control.",
         "source": "beans"
     },
     {

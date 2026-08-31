@@ -13,6 +13,7 @@ import net.dv8tion.jda.api.events.interaction.GenericInteractionCreateEvent;
 import org.apache.commons.lang3.StringUtils;
 import ti4.discord.interactions.buttons.Buttons;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.natau.NatauAbilityHandler;
+import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.netrunners.NetrunnersStartingTechsHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.luminous.opa.OpaAbilitiesHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.theodisi.Arcanum.ArcanumAbilityHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.theodisi.LostLegaciesStartingTechsHandler;
@@ -317,7 +318,9 @@ public class PlayerSetupService {
         PromissoryNoteHelper.sendPromissoryNoteInfo(game, player, false, event);
 
         if (player.getTechs().isEmpty() && !player.getFaction().contains("sardakk")) {
-            if (LostLegaciesStartingTechsHandler.offerStartingTechButtons(game, player, null)) {
+            if (NetrunnersStartingTechsHandler.offerStartingTechs(game, player, null)) {
+                // Netrunners starting technologies must already be owned by other players.
+            } else if (LostLegaciesStartingTechsHandler.offerStartingTechButtons(game, player, null)) {
                 // Lost Legacies starting-tech restrictions are handled by their faction handler.
             } else if (player.getFaction().contains("keleres")) {
                 Button getTech = Buttons.green(

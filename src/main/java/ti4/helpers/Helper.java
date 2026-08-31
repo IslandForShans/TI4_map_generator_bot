@@ -1520,7 +1520,6 @@ public final class Helper {
                     && !thing.contains("ghostbt")
                     && !thing.contains("tyrisbt")
                     && !thing.contains("dwsDiscount")
-                    && !thing.contains("netrunnersAgentDiscount")
                     && !thing.contains("aida")
                     && !thing.contains("commander")
                     && !thing.contains("agent")
@@ -1651,17 +1650,6 @@ public final class Helper {
                             .append('\n');
                     res += 1;
                 }
-                if (thing.startsWith("netrunnersAgentDiscount_")) {
-                    int discount = Integer.parseInt(thing.substring("netrunnersAgentDiscount_".length()));
-                    msg.append("> Used Zor No-ahn, the Netrunners agent, for a ")
-                            .append(discount)
-                            .append(" cost discount.\n");
-                    if ("inf".equalsIgnoreCase(resOrInfOrBoth)) {
-                        inf += discount;
-                    } else {
-                        res += discount;
-                    }
-                }
                 if ("boon".equals(thing)) {
                     msg.append("> Used Boon Relic ").append(ExploreEmojis.Relic).append('\n');
                     res += 1;
@@ -1713,9 +1701,7 @@ public final class Helper {
                     }
                     msg.append(".\n");
                 }
-                if (thing.startsWith("netrunnersAgentDiscount_")) {
-                    // Already included above as a cost discount.
-                } else if (thing.contains("commander") || thing.contains("Gledge Agent")) {
+                if (thing.contains("commander") || thing.contains("Gledge Agent")) {
                     msg.append("> ").append(thing).append('\n');
                 } else if (thing.contains("winnuagent")) {
                     msg.append("> Used Winnu agent for 2 resources").append('\n');

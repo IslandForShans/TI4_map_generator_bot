@@ -9,6 +9,7 @@ import net.dv8tion.jda.api.entities.channel.concrete.ThreadChannel;
 import net.dv8tion.jda.api.events.interaction.GenericInteractionCreateEvent;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.ashen.AshenBreakthroughHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.dream.DreamBreakthroughHandler;
+import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.netrunners.NetrunnersBreakthroughHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.theodisi.Ardentia.ArdentiaBreakthroughHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.theodisi.Kairn.KairnBreakthroughHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.whispers.arvaxi.ArvaxiBreakthroughHandler;
@@ -56,6 +57,7 @@ public class TeHelperBreakthroughs {
             case "dreambt" -> DreamBreakthroughHandler.postDreamBtMoveNexusButtons(event, game, player);
             case "kairnbt" -> KairnBreakthroughHandler.postInitialButtons(game, player);
             case "ardentiabt" -> ArdentiaBreakthroughHandler.startSubjugate(event, game, player);
+            case "netrunnersbt" -> NetrunnersBreakthroughHandler.startEmotet(game, player, event);
             default -> {
                 MessageHelper.sendMessageToChannel(
                         event.getMessageChannel(),

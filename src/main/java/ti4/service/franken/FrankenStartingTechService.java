@@ -3,6 +3,7 @@ package ti4.service.franken;
 import java.util.List;
 import lombok.experimental.UtilityClass;
 import net.dv8tion.jda.api.events.interaction.GenericInteractionCreateEvent;
+import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.netrunners.NetrunnersStartingTechsHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.theodisi.LostLegaciesStartingTechsHandler;
 import ti4.game.Player;
 import ti4.image.Mapper;
@@ -30,6 +31,9 @@ public class FrankenStartingTechService {
         }
         if ("revenant".equalsIgnoreCase(itemID)) {
             LostLegaciesStartingTechsHandler.offerRevenantStartingTechs(player.getGame(), player);
+        }
+        if ("netrunners".equalsIgnoreCase(itemID)) {
+            NetrunnersStartingTechsHandler.offerStartingTechs(player.getGame(), player, itemID);
         }
     }
 

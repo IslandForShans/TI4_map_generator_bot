@@ -322,7 +322,7 @@
     "id": "netrunners_flagship",
     "baseType": "flagship",
     "asyncId": "fs",
-    "name": "Trojan",
+    "name": "Mi-Dum",
     "source": "beans",
     "faction": "netrunners",
     "moveValue": 1,
@@ -334,13 +334,13 @@
     "sustainDamage": true,
     "canBeDirectHit": true,
     "isShip": true,
-    "ability": "After this unit moves, before SPACE CANNON OFFENSE, choose 1 unit ability other than SUSTAIN DAMAGE. All units in this unit's system lose that ability until the end of this action."
+    "ability": "This unit rolls an additional number of combat dice equal to the amount of red technologies your opponent owns."
   },
   {
     "id": "netrunners_mech",
     "baseType": "mech",
     "asyncId": "mf",
-    "name": "Legion",
+    "name": "Nimda",
     "source": "beans",
     "faction": "netrunners",
     "capacityUsed": 1,

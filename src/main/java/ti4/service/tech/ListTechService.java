@@ -9,7 +9,9 @@ import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import ti4.discord.interactions.buttons.Buttons;
+import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.netrunners.NetrunnersAbilitiesHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.netrunners.NetrunnersLeadersHandler;
+import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.netrunners.NetrunnersPromissoryHandler;
 import ti4.discord.interactions.routing.ButtonHandler;
 import ti4.game.Game;
 import ti4.game.Planet;
@@ -106,10 +108,6 @@ public class ListTechService {
             boolean dwsBt,
             List<TechnologyType> techTypes,
             boolean first) {
-        if (sc && first && NetrunnersLeadersHandler.shouldChooseCommanderTechnologySecondary(game, player)) {
-            NetrunnersLeadersHandler.offerCommanderTechnologySecondary(game, player);
-            return;
-        }
         game.setComponentAction(!sc);
         String finsFactionCheckerPrefix = player.factionButtonChecker();
         game.setComponentAction(!sc);
@@ -143,8 +141,6 @@ public class ListTechService {
                             "used **Tek Mir-un** to follow **Technology** without spending a strategy token.");
                 }
             }
-            game.removeStoredValue("netrunnersCommanderTechnologySecondary" + player.getFaction());
-
             if (first) {
                 ButtonHelperCommanders.yinCommanderSummary(player, game);
                 ButtonHelperCommanders.veldyrCommanderSummary(player, game);
@@ -169,6 +165,10 @@ public class ListTechService {
                 case UNITUPGRADE -> buttons.add(Buttons.gray(id, label, type.emoji()));
                 default -> {}
             }
+        }
+        Button proxyNetwork = NetrunnersAbilitiesHandler.getProxyNetworkButton(game, player);
+        if (proxyNetwork != null) {
+            buttons.add(proxyNetwork);
         }
 
         ButtonHelperCommanders.yinCommanderSummary(player, game);
@@ -214,6 +214,10 @@ public class ListTechService {
         } else {
             buttons.add(Buttons.gray("acquireATechWithSC_second", "Get Other Technology"));
         }
+        Button proxyNetwork = NetrunnersAbilitiesHandler.getProxyNetworkButton(game, player);
+        if (proxyNetwork != null) {
+            buttons.add(proxyNetwork);
+        }
 
         String message = player.getRepresentation() + ", please choose which technology you wish to get.";
 
@@ -239,6 +243,11 @@ public class ListTechService {
         Game game = player.getGame();
         String requirements = tech.getRequirements().orElse("");
         int wilds = 0;
+        if (!tech.isUnitUpgrade()
+                && tech.getFaction().isEmpty()
+                && NetrunnersPromissoryHandler.hasSharedNetworkAccessInHand(player)) {
+            wilds++;
+        }
         if (ButtonHelperCommanders.getVeldyrCommanderTechs(player, game, false).contains(tech.getAlias())) {
             wilds++;
         }

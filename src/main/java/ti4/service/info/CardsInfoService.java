@@ -94,9 +94,6 @@ public class CardsInfoService {
         if (player.hasUnexhaustedLeader("hacanagent")) {
             buttons.add(Buttons.gray("exhaustAgent_hacanagent", "Use Hacan Agent", FactionEmojis.Hacan));
         }
-        if (player.hasUnexhaustedLeader("netrunnersagent")) {
-            buttons.add(NetrunnersLeadersHandler.getAgentCardsInfoButton(player));
-        }
         if (player.hasUnexhaustedLeader("ironagent")) {
             buttons.add(IronLeadersHandler.getMasterOfDefenseCardsInfoButton());
         }
@@ -214,6 +211,9 @@ public class CardsInfoService {
         }
         if (player.hasUnexhaustedLeader("crystellumagent")) {
             CrystellumLeadersHandler.addCrystellumAgentCardsInfoButton(buttons, player);
+        }
+        if (player.hasUnexhaustedLeader("netrunnersagent")) {
+            buttons.add(NetrunnersLeadersHandler.getAgentCardsInfoButton(player));
         }
         if (player.hasUnexhaustedLeader("empyreanagent")) {
             buttons.add(Buttons.gray(

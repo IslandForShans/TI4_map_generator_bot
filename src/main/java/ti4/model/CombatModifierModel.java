@@ -119,6 +119,11 @@ public class CombatModifierModel implements ModelInterface {
             if ("_flagship_or_mech_".equals(scope)) {
                 isInScope = unit.getUnitType() == UnitType.Flagship || unit.getUnitType() == UnitType.Mech;
             }
+            if ("netrunners_mimetic".equals(scope)) {
+                isInScope = java.util.Arrays.asList(game.getStoredValue("netrunnersMimeticUnit" + player.getFaction())
+                                .split(","))
+                        .contains(unit.getAsyncId());
+            }
             if ("classifiedWeapons".equals(scope)) {
                 String storedValue = game.getStoredValue("classifiedWeapons");
                 int separatorIdx = storedValue.indexOf(';');

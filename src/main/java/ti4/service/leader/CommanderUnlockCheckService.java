@@ -314,9 +314,15 @@ public class CommanderUnlockCheckService {
 
                 shouldBeUnlocked = eligiblePlanets >= 4;
             }
-            case "netrunners" ->
-                shouldBeUnlocked = TechnologyType.mainFour.stream()
-                        .anyMatch(type -> ButtonHelper.getNumberOfCertainTypeOfTech(player, type) >= 3);
+            case "netrunners" -> {
+                List<TechnologyType> colorsOwnedByOthers = TechnologyType.mainFour.stream()
+                        .filter(type -> game.getRealPlayersExcludingThis(player).stream()
+                                .anyMatch(other -> ButtonHelper.getNumberOfCertainTypeOfTech(other, type) > 0))
+                        .toList();
+                shouldBeUnlocked = !colorsOwnedByOthers.isEmpty()
+                        && colorsOwnedByOthers.stream()
+                                .allMatch(type -> ButtonHelper.getNumberOfCertainTypeOfTech(player, type) > 0);
+            }
             case "natau" -> {
                 int qualifyingSystems = 0;
                 for (Tile tile : CheckUnitContainmentService.getTilesContainingPlayersUnits(game, player)) {

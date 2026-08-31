@@ -527,8 +527,6 @@ public class StartCombatService {
 
         // General Space Combat
         sendGeneralCombatButtonsToThread(threadChannel, game, player1, player2, tile, spaceOrGround, event);
-        NetrunnersAbilitiesHandler.announceMimeticOverride(player1, player2, threadChannel);
-        NetrunnersAbilitiesHandler.announceMimeticOverride(player2, player1, threadChannel);
         if (!game.isFowMode()) {
             if (player1.getPlayableActionCards().isEmpty()) {
                 MessageHelper.sendMessageToChannel(
@@ -1561,6 +1559,8 @@ public class StartCombatService {
         RevenantLeadersHandler.addRevKryxosHeroButton(buttons, game, p1, p2, tile, isSpaceCombat);
         RevenantLeadersHandler.addRevKryxosHeroButton(buttons, game, p2, p1, tile, isSpaceCombat);
         checkAndAddIncomprehensibleFormButton(game, p1, p2, isSpaceCombat, tile, buttons);
+        NetrunnersAbilitiesHandler.addMimeticOverrideButton(buttons, p1, p2);
+        NetrunnersAbilitiesHandler.addMimeticOverrideButton(buttons, p2, p1);
 
         if (p1.hasTechReady("sc") || (!game.isFowMode() && p2.hasTechReady("sc"))) {
             if (p1.hasTechReady("sc")) {

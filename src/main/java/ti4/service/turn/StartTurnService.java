@@ -18,7 +18,6 @@ import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.ashen.As
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.crystellum.CrystellumTechHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.crystellum.CrystellumUnitHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.dream.DreamBreakthroughHandler;
-import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.netrunners.NetrunnersAbilitiesHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.ta.TaAbilityHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.theodisi.Aeterna.AeternaAbilityHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.theodisi.Aeterna.AeternaPromissoryHandler;
@@ -496,12 +495,6 @@ public class StartTurnService {
         }
         if (!doneActionThisTurn && player.hasUnexhaustedLeader("kairnagent")) {
             startButtons.add(KairnLeadershandler.getKairnAgentButton(player));
-        }
-        if (!doneActionThisTurn && player.hasAbility("proxy_network")) {
-            Button proxyNetworkButton = NetrunnersAbilitiesHandler.getProxyNetworkButton(game, player);
-            if (proxyNetworkButton != null) {
-                startButtons.add(proxyNetworkButton);
-            }
         }
         if (!doneActionThisTurn && player.hasUnit("crystellum_fighter3")) {
             startButtons.add(CrystellumUnitHandler.addShardSwarmStartTurnButton(player));

@@ -15,7 +15,7 @@ import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import org.apache.commons.lang3.function.Consumers;
 import ti4.discord.interactions.buttons.Buttons;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.natau.NatauAbilityHandler;
-import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.netrunners.NetrunnersFactionTechsHandler;
+import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.netrunners.NetrunnersPromissoryHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.theodisi.Oblivion.OblivionAbilityHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.theodisi.Verydith.VerydithPromissoryHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.theodisi.Veylor.VeylorAbilitiesHandler;
@@ -165,6 +165,7 @@ public final class StatusHelper {
         game.setPhaseOfGame("statusScoring");
         VeylorAbilitiesHandler.returnUnassignedTightSchedulingAgendas(game);
         VerydithPromissoryHandler.returnPactRenewedAtStartOfStatus(game);
+        NetrunnersPromissoryHandler.returnSharedNetworkAccessAtStartOfStatus(game);
         GameEventService.commit(game, GameEventType.PHASE_STARTED, null, Map.of("phase", "status"));
         GameEventDraft.open(game);
         game.setStoredValue("startTimeOfRound" + game.getRound() + "StatusScoring", System.currentTimeMillis() + "");
@@ -505,9 +506,6 @@ public final class StatusHelper {
                     MessageHelper.sendMessageToChannelWithButtons(p2.getCardsInfoThread(), msg, buttons);
                 }
             }
-        }
-        if (game.getRealPlayers().stream().anyMatch(player -> player.hasTech("benetrunnersdm"))) {
-            NetrunnersFactionTechsHandler.resolveDataMining(game);
         }
 
         for (Player player : game.getRealPlayers()) {

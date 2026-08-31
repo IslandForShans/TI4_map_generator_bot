@@ -118,10 +118,10 @@
         "types": [
             "CYBERNETIC"
         ],
-        "requirements": "Y",
+        "requirements": "YY",
         "faction": "netrunners",
         "source": "beans",
-        "text": "At the start of the status phase, gain 1 trade good for every control token on your faction sheet."
+        "text": "When you gain a technology, for each other player that also owns that technology, gain 1 trade good."
     },
     {
         "alias": "benetrunnersmo",
@@ -132,7 +132,7 @@
         "requirements": "RRR",
         "faction": "netrunners",
         "source": "beans",
-        "text": "During combat, your opponent treats any technologies they own that you also own as having no ability text."
+        "text": "At the start of a round of combat, you may exhaust this card and choose 1 technology owned by both you and your opponent. Apply +1 to a number of units equal to the number of prerequisites on that technology for this round of combat."
     },
     {
         "alias": "benataudo",

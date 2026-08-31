@@ -1,0 +1,26 @@
+[
+  {
+    "alias": "netrunners_flagship_opponent_red_tech",
+    "type": "extrarolls",
+    "value": "+1",
+    "valueScalingType": "opponent_red_tech",
+    "persistenceType": "ALWAYS",
+    "scope": "fs",
+    "related": [
+      {
+        "type": "unit",
+        "alias": "netrunners_flagship"
+      }
+    ],
+    "forCombatAbility": "combatround"
+  },
+  {
+    "alias": "netrunners_mimetic_override_1",
+    "type": "mods",
+    "value": "+1",
+    "persistenceType": "TEMP_ONE_ROUND",
+    "scope": "netrunners_mimetic",
+    "related": [{"type": "tech", "alias": "benetrunnersmo"}],
+    "forCombatAbility": "combatround"
+  }
+]

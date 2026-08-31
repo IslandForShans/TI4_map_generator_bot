@@ -176,9 +176,8 @@
     "type": "agent",
     "name": "Zor No-ahn",
     "title": "Systems Specialist",
-    "abilityWindow": "When a player spends resources to research a technology:",
-    "abilityText": "You may exhaust this card to reduce the cost by 1 for each other player who owns that technology.",
-    "notes": "This is best used when the receiving player is actually paying for their tech, it will update once they press a button during payment after the agent has been applied.",
+    "abilityWindow": "When any player gains a technology:",
+    "abilityText": "You may exhaust this card to allow that player to return that technology to their technology deck and gain 1 technology in a different color with the same number of prerequisites.",
     "unlockCondition": "Always Unlocked",
     "source": "beans"
   },
@@ -189,9 +188,8 @@
     "name": "Tek Mir-un",
     "title": "Tech Junkie",
     "abilityWindow": "When you perform the secondary ability of the \"Technology\" strategy card:",
-    "abilityText": "You may choose to not spend a command token. If you do spend a command token, you may exhaust a planet with a technology specialty to research a technology of the same color as the exhausted planet without spending resources.",
-    "notes": "When this is unlocked, make sure to not press \"Spend a strategy token\". Press \"Get a Technology\" instead. Then, it will offer your options for following.",
-    "unlockCondition": "Own 3 technologies in the same color.",
+    "abilityText": "You do not spend a command token.",
+    "unlockCondition": "Own 1 technology in each color owned by at least 1 other player.",
     "source": "beans"
   },
   {
@@ -202,7 +200,7 @@
     "title": "The Technocrat",
     "abilityName": "Power Surge - Network Overload",
     "abilityWindow": "ACTION:",
-    "abilityText": "Choose 1 technology you own that is owned by at least 1 other player. All other players that own that technology return that technology to their technology deck. Then, for each player's control token on your faction sheet, you may return it to gain 1 command token and 1 non-faction technology that player owns. Then, purge this card.",
+    "abilityText": "Choose 1 non-unit upgrade technology you own that is owned by at least 1 other player. All other players that own that technology must return that technology to their technology deck. Then, purge this card.",
     "unlockCondition": "Have 3 scored objectives.",
     "source": "beans"
   },

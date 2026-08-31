@@ -31,6 +31,7 @@ import ti4.model.CombatModifierModel;
 import ti4.model.NamedCombatModifierModel;
 import ti4.model.RelicModel;
 import ti4.model.TechnologyModel;
+import ti4.model.TechnologyModel.TechnologyType;
 import ti4.model.TileModel;
 import ti4.model.UnitModel;
 import ti4.service.breakthrough.ValefarZService;
@@ -817,6 +818,15 @@ public class CombatModHelper {
                     scalingCount += ButtonHelper.checkNumberNonFighterShips(opponent, activeSystem);
                 case Constants.MOD_OPPONENT_SHIP ->
                     scalingCount += ButtonHelper.checkNumberShips(opponent, activeSystem);
+                case "opponent_red_tech" -> {
+                    if (opponent != null) {
+                        scalingCount = opponent.getTechs().stream()
+                                .map(Mapper::getTech)
+                                .filter(java.util.Objects::nonNull)
+                                .filter(tech -> tech.getTypes().contains(TechnologyType.WARFARE))
+                                .count();
+                    }
+                }
                 case "combat_round" -> {
                     int round;
                     String combatName = "combatRoundTracker" + player.getFaction() + activeSystem.getPosition()

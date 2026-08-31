@@ -18,7 +18,9 @@ import ti4.contest.replay.service.CombatReplayService;
 import ti4.discord.interactions.buttons.Buttons;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.natau.NatauDoctrineHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.netrunners.NetrunnersAbilitiesHandler;
+import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.netrunners.NetrunnersFactionTechsHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.netrunners.NetrunnersLeadersHandler;
+import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.netrunners.NetrunnersPromissoryHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.netrunners.NetrunnersUnitsHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.ta.TaFactionTechHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.theodisi.Arcanum.ArcanumLeadersHandler;
@@ -93,9 +95,12 @@ public class PlayerTechService {
         player.addTech(techID);
         if (gainedTech) {
             ArcanumUnitHandler.getRuneboundButtons(player, game, techID);
+            NetrunnersAbilitiesHandler.offerNeuralInstruments(game, player);
+            NetrunnersFactionTechsHandler.resolveDataMining(game, player, techID);
+            NetrunnersLeadersHandler.offerAgentTechnologyReplacement(game, player, techID);
+            CommanderUnlockCheckService.checkAllPlayersInGame(game, "netrunners");
+            NetrunnersUnitsHandler.offerNimdaDeploy(game, player);
         }
-        NetrunnersAbilitiesHandler.offerNeuralInstruments(game, player);
-        NetrunnersUnitsHandler.offerLegionDeploy(game, player);
         ButtonHelperCommanders.resolveNekroCommanderCheck(player, techID, game);
         String message = player.getRepresentation() + " added technology: "
                 + Mapper.getTech(techID).getRepresentation(false) + ".";
@@ -794,6 +799,12 @@ public class PlayerTechService {
             return;
         }
         TechnologyModel techM = Mapper.getTech(techID);
+        boolean proxyNetworkResearch = buttonIDComponents.contains("proxyNetwork");
+        if (isResearch
+                && !proxyNetworkResearch
+                && NetrunnersAbilitiesHandler.interceptProxyNetworkResearch(game, player, event, techID)) {
+            return;
+        }
         if (isResearch
                 && "arcanum".equalsIgnoreCase(techM.getFaction().orElse(""))
                 && !ListTechService.isTechResearchable(techM, player)) {
@@ -812,9 +823,17 @@ public class PlayerTechService {
         if (techM.getRequirements().isPresent() && techM.getRequirements().get().length() > 1) {
             CommanderUnlockCheckService.checkPlayer(player, "zealots");
         }
+        boolean gainedTech = !player.hasTech(techID);
         player.addTech(techID);
-        NetrunnersAbilitiesHandler.offerNeuralInstruments(game, player);
-        NetrunnersUnitsHandler.offerLegionDeploy(game, player);
+        if (gainedTech) {
+            NetrunnersAbilitiesHandler.offerNeuralInstruments(game, player);
+            NetrunnersFactionTechsHandler.resolveDataMining(game, player, techID);
+            NetrunnersLeadersHandler.offerAgentTechnologyReplacement(game, player, techID);
+            CommanderUnlockCheckService.checkAllPlayersInGame(game, "netrunners");
+        }
+        if (gainedTech) {
+            NetrunnersUnitsHandler.offerNimdaDeploy(game, player);
+        }
         ArcanumUnitHandler.getRuneboundButtons(player, game, techID);
         if (isResearch) {
             ArcanumLeadersHandler.offerVeylaTheKeeperButtons(game, player, techID);
@@ -1084,9 +1103,9 @@ public class PlayerTechService {
         if ("res".equals(payType)) {
             buttons.addAll(dwsCommanders);
         }
-        Button netrunnersAgentDiscount = NetrunnersLeadersHandler.getAgentDiscountButton(game, player, tech, payType);
-        if (netrunnersAgentDiscount != null) {
-            buttons.add(netrunnersAgentDiscount);
+        Button sharedNetworkAccess = NetrunnersPromissoryHandler.getSharedNetworkAccessPaymentButton(player, techM);
+        if (sharedNetworkAccess != null) {
+            buttons.add(sharedNetworkAccess);
         }
         if (!techM.isUnitUpgrade() && player.hasAbility("iconoclasm")) {
             int culturalFragments = ButtonHelperExplore.getNormalFragmentCount(player, Constants.CULTURAL);
