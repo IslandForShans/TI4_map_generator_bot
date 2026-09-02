@@ -1,5 +1,6 @@
 package ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.netrunners;
 
+import java.util.ArrayList;
 import java.util.List;
 import lombok.experimental.UtilityClass;
 import net.dv8tion.jda.api.components.buttons.Button;
@@ -25,7 +26,7 @@ public class NetrunnersBreakthroughHandler {
     private static final String EMOTET = "netrunnersbt";
 
     public static void startEmotet(Game game, Player player, GenericInteractionCreateEvent event) {
-        if (game == null || player == null || !player.hasReadyBreakthrough(EMOTET)) return;
+        if (game == null || player == null || !player.hasBreakthrough(EMOTET)) return;
         List<Button> buttons = game.getRealPlayersExcludingThis(player).stream()
                 .filter(target -> target.getTg() >= 2)
                 .map(target -> Buttons.green(
@@ -48,18 +49,23 @@ public class NetrunnersBreakthroughHandler {
     @ButtonHandler("netrunnersEmotetTarget_")
     public static void chooseEmotetTechnology(Game game, Player player, ButtonInteractionEvent event, String buttonID) {
         Player target = game.getPlayerFromColorOrFaction(buttonID.replace("netrunnersEmotetTarget_", ""));
-        if (target == null || target == player || target.getTg() < 2 || !player.hasReadyBreakthrough(EMOTET)) return;
-        List<Button> buttons = game.getTechnologyDeck().stream()
+        if (target == null || target == player || target.getTg() < 2 || !player.hasBreakthrough(EMOTET)) return;
+        List<ti4.model.TechnologyModel> techs = game.getTechnologyDeck().stream()
                 .map(Mapper::getTech)
                 .filter(java.util.Objects::nonNull)
                 .filter(tech -> tech.getFaction().isEmpty() && !tech.isUnitUpgrade())
                 .filter(tech -> !target.hasTech(tech.getAlias()))
                 .filter(tech -> ListTechService.isTechResearchable(tech, target))
-                .map(tech -> Buttons.green(
-                        player.factionButtonChecker() + "netrunnersEmotetTech_" + target.getFaction() + "|"
-                                + tech.getAlias(),
-                        tech.getName()))
-                .toList();
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        List<Button> buttons = ListTechService.getTechButtons(techs, target);
+        for (int index = 0; index < buttons.size(); index++) {
+            buttons.set(
+                    index,
+                    buttons.get(index)
+                            .withCustomId(target.factionButtonChecker() + "netrunnersEmotetTech_" + player.getFaction()
+                                    + "|" + target.getFaction() + "|"
+                                    + techs.get(index).getAlias()));
+        }
         if (buttons.isEmpty()) return;
         ButtonHelper.deleteMessage(event);
         MessageHelper.sendMessageToChannelWithButtons(
@@ -68,20 +74,50 @@ public class NetrunnersBreakthroughHandler {
                         + ", choose the non-faction technology to research for 2 trade goods via _Emotet_.",
                 NewStuffHelper.buttonPagination(
                         buttons,
-                        player.factionButtonChecker() + "netrunnersEmotetTech_" + target.getFaction() + "|",
+                        target.factionButtonChecker() + "netrunnersEmotetTech_" + player.getFaction() + "|"
+                                + target.getFaction() + "|",
                         0));
     }
 
     @ButtonHandler("netrunnersEmotetTech_")
     public static void resolveEmotetTechnology(
             Game game, Player player, ButtonInteractionEvent event, String buttonID) {
-        String[] parts = buttonID.replace("netrunnersEmotetTech_", "").split("\\|", 2);
-        Player target = parts.length == 2 ? game.getPlayerFromColorOrFaction(parts[0]) : null;
-        var tech = parts.length == 2 ? Mapper.getTech(parts[1]) : null;
-        if (target == null
-                || target == player
+        String[] parts = buttonID.replace("netrunnersEmotetTech_", "").split("\\|", 3);
+        Player owner = parts.length == 3 ? game.getPlayerFromColorOrFaction(parts[0]) : null;
+        Player target = parts.length == 3 ? game.getPlayerFromColorOrFaction(parts[1]) : null;
+        if (owner != null && target == player && target != owner && owner.hasBreakthrough(EMOTET)) {
+            List<ti4.model.TechnologyModel> techs = game.getTechnologyDeck().stream()
+                    .map(Mapper::getTech)
+                    .filter(java.util.Objects::nonNull)
+                    .filter(candidate -> candidate.getFaction().isEmpty() && !candidate.isUnitUpgrade())
+                    .filter(candidate -> !target.hasTech(candidate.getAlias()))
+                    .filter(candidate -> ListTechService.isTechResearchable(candidate, target))
+                    .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+            List<Button> buttons = ListTechService.getTechButtons(techs, target);
+            for (int index = 0; index < buttons.size(); index++) {
+                buttons.set(
+                        index,
+                        buttons.get(index)
+                                .withCustomId(target.factionButtonChecker() + "netrunnersEmotetTech_"
+                                        + owner.getFaction() + "|" + target.getFaction() + "|"
+                                        + techs.get(index).getAlias()));
+            }
+            String message = target.getRepresentationUnfogged()
+                    + ", choose the non-faction technology to research for 2 trade goods via _Emotet_.";
+            String buttonPrefix = target.factionButtonChecker() + "netrunnersEmotetTech_" + owner.getFaction() + "|"
+                    + target.getFaction() + "|";
+            if (NewStuffHelper.checkAndHandlePaginationChange(
+                    event, target.getCorrectChannel(), buttons, message, buttonPrefix, buttonID)) {
+                return;
+            }
+        }
+        var tech = parts.length == 3 ? Mapper.getTech(parts[2]) : null;
+        if (owner == null
+                || target == null
+                || target != player
+                || target == owner
                 || tech == null
-                || !player.hasReadyBreakthrough(EMOTET)
+                || !owner.hasBreakthrough(EMOTET)
                 || target.getTg() < 2
                 || tech.getFaction().isPresent()
                 || tech.isUnitUpgrade()
@@ -94,24 +130,26 @@ public class NetrunnersBreakthroughHandler {
         NetrunnersLeadersHandler.offerAgentTechnologyReplacement(game, target, tech.getAlias());
         ti4.service.leader.CommanderUnlockCheckService.checkAllPlayersInGame(game, "netrunners");
         NetrunnersUnitsHandler.offerNimdaDeploy(game, target);
-        BreakthroughCommandHelper.exhaustBreakthrough(player, EMOTET);
+        if (owner.hasReadyBreakthrough(EMOTET)) {
+            BreakthroughCommandHelper.exhaustBreakthrough(owner, EMOTET);
+        }
         ButtonHelper.deleteMessage(event);
         MessageHelper.sendMessageToChannel(
                 event.getMessageChannel(),
                 target.getRepresentationNoPing() + " spent 2 trade goods and researched " + tech.getNameRepresentation()
                         + " via _Emotet_.");
-        if (player.getDebtTokenCount(target.getColor(), NetrunnersAbilitiesHandler.CONTROL_TOKEN_POOL) < 1) return;
+        if (owner.getDebtTokenCount(target.getColor(), NetrunnersAbilitiesHandler.CONTROL_TOKEN_POOL) < 1) return;
         List<Button> planets = target.getPlanets().stream()
                 .filter(planet -> game.getTileFromPlanet(planet) != null)
                 .map(planet -> Buttons.green(
-                        player.factionButtonChecker() + "netrunnersEmotetCoexist_" + target.getFaction() + "|"
+                        owner.factionButtonChecker() + "netrunnersEmotetCoexist_" + target.getFaction() + "|"
                                 + tech.getAlias() + "|" + planet,
                         "Coexist on " + Helper.getPlanetRepresentation(planet, game)))
                 .toList();
         if (!planets.isEmpty()) {
             MessageHelper.sendMessageToChannelWithButtons(
-                    player.getCorrectChannel(),
-                    player.getRepresentationUnfogged() + ", you may return "
+                    owner.getCorrectChannel(),
+                    owner.getRepresentationUnfogged() + ", you may return "
                             + target.getRepresentation(false, true) + "'s control token to gain "
                             + tech.getNameRepresentation() + " and place 1 infantry into coexistence.",
                     planets);

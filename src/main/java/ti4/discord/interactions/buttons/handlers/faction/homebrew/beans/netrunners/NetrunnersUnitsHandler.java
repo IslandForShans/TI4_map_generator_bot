@@ -1,5 +1,6 @@
 package ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.netrunners;
 
+import java.util.ArrayList;
 import java.util.List;
 import lombok.experimental.UtilityClass;
 import net.dv8tion.jda.api.components.buttons.Button;
@@ -21,16 +22,18 @@ public class NetrunnersUnitsHandler {
     public static void offerNimdaDeploy(Game game, Player player) {
         if (game == null
                 || player == null
+                || "setup".equalsIgnoreCase(game.getPhaseOfGame())
                 || !player.hasUnit(MECH_ID)
                 || ButtonHelper.isLawInPlay(game, "articles_war")
                 || ButtonHelper.getNumberOfUnitsOnTheBoard(game, player, "mech", true) >= 4) return;
-        List<Button> buttons = player.getPlanets().stream()
+        List<Button> buttons = new ArrayList<>(player.getPlanets().stream()
                 .filter(planet -> game.getTileFromPlanet(planet) != null)
                 .map(planet -> Buttons.green(
                         player.factionButtonChecker() + "netrunnersNimda_" + planet,
                         "Deploy Nimda to " + Helper.getPlanetRepresentation(planet, game)))
-                .toList();
+                .toList());
         if (buttons.isEmpty()) return;
+        buttons.add(Buttons.red(player.factionButtonChecker() + "deleteButtons", "Decline"));
         MessageHelper.sendMessageToChannelWithButtons(
                 player.getCorrectChannel(),
                 player.getRepresentationUnfogged()
@@ -44,6 +47,7 @@ public class NetrunnersUnitsHandler {
         Tile tile = game.getTileFromPlanet(planet);
         if (tile == null
                 || !player.getPlanets().contains(planet)
+                || "setup".equalsIgnoreCase(game.getPhaseOfGame())
                 || !player.hasUnit(MECH_ID)
                 || ButtonHelper.isLawInPlay(game, "articles_war")
                 || ButtonHelper.getNumberOfUnitsOnTheBoard(game, player, "mech", true) >= 4) return;

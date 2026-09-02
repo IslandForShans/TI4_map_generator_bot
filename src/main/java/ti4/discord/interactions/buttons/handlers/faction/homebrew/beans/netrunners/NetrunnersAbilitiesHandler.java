@@ -1,5 +1,6 @@
 package ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.netrunners;
 
+import java.util.ArrayList;
 import java.util.List;
 import lombok.experimental.UtilityClass;
 import net.dv8tion.jda.api.components.buttons.Button;
@@ -11,14 +12,20 @@ import ti4.game.Player;
 import ti4.game.Tile;
 import ti4.game.UnitHolder;
 import ti4.helpers.ButtonHelper;
-import ti4.helpers.Constants;
+import ti4.helpers.ButtonHelperCommanders;
+import ti4.helpers.ButtonHelperFactionSpecific;
+import ti4.helpers.ButtonHelperSCs;
 import ti4.helpers.Units.UnitKey;
 import ti4.image.Mapper;
 import ti4.message.MessageHelper;
+import ti4.model.StrategyCardModel;
 import ti4.model.TechnologyModel;
 import ti4.model.TemporaryCombatModifierModel;
+import ti4.model.UnitModel;
+import ti4.service.button.ReactionService;
 import ti4.service.combat.StartCombatService;
 import ti4.service.emoji.FactionEmojis;
+import ti4.service.tech.ListTechService;
 import ti4.service.transaction.SendDebtService;
 
 @UtilityClass
@@ -28,7 +35,7 @@ public class NetrunnersAbilitiesHandler {
     public static final String CONTROL_TOKEN_POOL = "hackerman";
 
     public static void offerNeuralInstruments(Game game, Player techGainer) {
-        if (game == null || techGainer == null) return;
+        if (game == null || techGainer == null || "setup".equalsIgnoreCase(game.getPhaseOfGame())) return;
         List<Player> netrunners = game.getRealPlayersExcludingThis(techGainer).stream()
                 .filter(player -> player.hasAbility(NEURAL_INSTRUMENTS_ABILITY))
                 .toList();
@@ -48,19 +55,12 @@ public class NetrunnersAbilitiesHandler {
         }
     }
 
-    public static void addMimeticOverrideButton(List<Button> buttons, Player player, Player opponent) {
-        if (player == null || opponent == null || !player.hasTechReady("benetrunnersmo")) return;
-        boolean hasSharedTechnology = player.getTechs().stream()
-                .filter(opponent::hasTech)
-                .map(Mapper::getTech)
-                .filter(java.util.Objects::nonNull)
-                .anyMatch(tech -> tech.getRequirements().orElse("").length() > 0);
-        if (hasSharedTechnology) {
-            buttons.add(Buttons.gray(
-                    player.factionButtonChecker() + "netrunnersMimeticStart",
-                    "Use Mimetic Override",
-                    FactionEmojis.netrunners));
-        }
+    public static void addMimeticOverrideButton(List<Button> buttons, Player player) {
+        if (player == null || !player.hasTechReady("benetrunnersmo")) return;
+        buttons.add(Buttons.gray(
+                player.factionButtonChecker() + "netrunnersMimeticStart",
+                "Use Mimetic Override",
+                FactionEmojis.netrunners));
     }
 
     @ButtonHandler("netrunnersMimeticStart")
@@ -72,22 +72,33 @@ public class NetrunnersAbilitiesHandler {
                 .findFirst()
                 .orElse(null);
         if (opponent == null) return;
-        List<Button> buttons = player.getTechs().stream()
+        List<TechnologyModel> techs = player.getTechs().stream()
                 .filter(opponent::hasTech)
                 .map(Mapper::getTech)
                 .filter(java.util.Objects::nonNull)
                 .filter(tech -> tech.getRequirements().orElse("").length() > 0)
-                .map(tech -> Buttons.green(
-                        player.factionButtonChecker() + "netrunnersMimeticTech_" + tech.getAlias(), tech.getName()))
-                .toList();
-        if (buttons.isEmpty()) return;
-        buttons = new java.util.ArrayList<>(buttons);
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        List<Button> buttons = ListTechService.getTechButtons(techs, player);
+        for (int index = 0; index < buttons.size(); index++) {
+            buttons.set(
+                    index,
+                    buttons.get(index)
+                            .withCustomId(player.factionButtonChecker() + "netrunnersMimeticTech_"
+                                    + techs.get(index).getAlias()));
+        }
+        if (buttons.isEmpty()) {
+            MessageHelper.sendMessageToChannel(
+                    event.getMessageChannel(),
+                    player.getRepresentationUnfogged()
+                            + " has no shared technology with prerequisites to use for _Mimetic Override_.");
+            return;
+        }
         buttons.add(Buttons.red(player.factionButtonChecker() + "deleteButtons", "Decline"));
         ButtonHelper.deleteButtonAndDeleteMessageIfEmpty(event, false);
         MessageHelper.sendMessageToChannelWithButtons(
                 event.getMessageChannel(),
                 player.getRepresentationUnfogged()
-                        + ", you may exhaust _Mimetic Override_ to choose a shared technology and give +1 to 1 ship's combat rolls this round for each prerequisite.",
+                        + ", choose a shared technology. You may then choose a number of your ships equal to that technology's prerequisite count; each receives +1 to its combat rolls this round.",
                 buttons);
     }
 
@@ -96,43 +107,61 @@ public class NetrunnersAbilitiesHandler {
         String techId = buttonID.replace("netrunnersMimeticTech_", "");
         TechnologyModel tech = Mapper.getTech(techId);
         StartCombatService.CurrentCombat combat = StartCombatService.getCurrentCombat(game);
-        if (tech == null || combat == null || !player.hasTechReady("benetrunnersmo") || !player.hasTech(techId)) return;
+        if (tech == null || combat == null || !player.hasTechReady("benetrunnersmo") || !player.hasTech(techId)) {
+            MessageHelper.sendMessageToChannel(
+                    event.getMessageChannel(),
+                    player.getRepresentationUnfogged()
+                            + " could not resolve _Mimetic Override_ because its combat or selected technology is no longer valid.");
+            return;
+        }
         String selectedUnitKey = "netrunnersMimeticUnit" + player.getFaction();
         String selectedTechKey = "netrunnersMimeticTech" + player.getFaction();
         if (!techId.equals(game.getStoredValue(selectedTechKey))) {
             game.setStoredValue(selectedTechKey, techId);
             game.removeStoredValue(selectedUnitKey);
         }
-        Player opponent = game.getRealPlayers().stream()
-                .filter(candidate -> candidate != player && combat.factions().contains(candidate.getFaction()))
-                .findFirst()
-                .orElse(null);
-        Tile tile = game.getTileByPosition(combat.tilePosition());
+        Tile tile =
+                game.getTileByPosition(combat.tilePosition() == null ? game.getActiveSystem() : combat.tilePosition());
         UnitHolder holder = tile == null
                 ? null
-                : tile.getUnitHolders()
-                        .get(combat.unitHolderName() == null ? Constants.SPACE : combat.unitHolderName());
-        if (opponent == null || !opponent.hasTech(techId) || holder == null) return;
+                : combat.unitHolderName() == null
+                        ? tile.getSpaceUnitHolder()
+                        : tile.getUnitHolders().get(combat.unitHolderName());
+        if (holder == null) {
+            MessageHelper.sendMessageToChannel(
+                    event.getMessageChannel(),
+                    player.getRepresentationUnfogged() + " could not find the combat area for _Mimetic Override_.");
+            return;
+        }
         String selectedValue = game.getStoredValue(selectedUnitKey);
         List<String> selected = selectedValue.isEmpty() ? List.of() : List.of(selectedValue.split(","));
-        List<Button> buttons = holder.getUnitKeysForPlayer(player).stream()
-                .map(UnitKey::asyncID)
-                .distinct()
-                .map(asyncId -> player.getPriorityUnitByAsyncID(asyncId, holder))
-                .filter(java.util.Objects::nonNull)
-                .filter(unit -> unit.getIsShip())
-                .filter(unit -> unit.getCombatDieCount() > 0)
-                .filter(unit -> !selected.contains(unit.getAsyncId()))
-                .map(unit -> Buttons.green(
-                        player.factionButtonChecker() + "netrunnersMimeticUnit_" + techId + "|" + unit.getAsyncId(),
-                        unit.getUnitEmoji() + " " + unit.getName()))
-                .toList();
-        if (buttons.isEmpty()) return;
+        List<Button> buttons = new ArrayList<>();
+        for (UnitKey unitKey : holder.getUnitKeysForPlayer(player)) {
+            UnitModel unit = player.getPriorityUnitByAsyncID(unitKey.asyncID(), holder);
+            if (unit == null || !unit.getIsShip() || unit.getCombatDieCount() < 1) continue;
+            int selectedOfType =
+                    (int) selected.stream().filter(unit.getAsyncId()::equals).count();
+            int available = holder.getUnitCount(unitKey) - selectedOfType;
+            if (available < 1) continue;
+            buttons.add(Buttons.green(
+                    player.factionButtonChecker() + "netrunnersMimeticUnit_" + techId + "|" + unit.getAsyncId(),
+                    "Select " + unit.getName() + (available > 1 ? " (" + available + " available)" : ""),
+                    unit.getUnitEmoji()));
+        }
+        if (buttons.isEmpty()) {
+            MessageHelper.sendMessageToChannel(
+                    event.getMessageChannel(),
+                    player.getRepresentationUnfogged()
+                            + " has no eligible ships remaining to select for _Mimetic Override_.");
+            return;
+        }
         ButtonHelper.deleteMessage(event);
         MessageHelper.sendMessageToChannelWithButtons(
                 event.getMessageChannel(),
                 player.getRepresentationUnfogged()
-                        + ", choose a ship whose combat rolls receive +1 from _Mimetic Override_.",
+                        + ", choose ship " + (selected.size() + 1) + " of "
+                        + tech.getRequirements().orElse("").length()
+                        + " to receive +1 to its combat rolls from _Mimetic Override_ this round.",
                 buttons);
     }
 
@@ -161,8 +190,9 @@ public class NetrunnersAbilitiesHandler {
         ButtonHelper.deleteMessage(event);
         MessageHelper.sendMessageToChannel(
                 event.getMessageChannel(),
-                player.getRepresentationNoPing() + " exhausted _Mimetic Override_; " + selected
-                        + " receive +1 to their combat rolls this round.");
+                player.getRepresentationNoPing() + " exhausted _Mimetic Override_; "
+                        + selected.split(",").length
+                        + " selected ships receive +1 to their combat rolls this round.");
     }
 
     public static Button getProxyNetworkButton(Game game, Player player) {
@@ -189,7 +219,8 @@ public class NetrunnersAbilitiesHandler {
     @ButtonHandler("netrunnersProxyNetwork")
     public static void startProxyNetwork(Game game, Player player, ButtonInteractionEvent event) {
         if (getProxyNetworkButton(game, player) == null) return;
-        List<Button> buttons = game.getTechnologyDeck().stream()
+        if (!resolveProxyNetworkTechnologySecondary(game, player, event)) return;
+        List<TechnologyModel> techs = game.getTechnologyDeck().stream()
                 .map(Mapper::getTech)
                 .filter(java.util.Objects::nonNull)
                 .filter(tech -> tech.getFaction()
@@ -200,16 +231,69 @@ public class NetrunnersAbilitiesHandler {
                                         && other.hasTech(tech.getAlias()))))
                 .filter(tech -> !player.hasTech(tech.getAlias()))
                 .filter(tech -> ti4.service.tech.ListTechService.isTechResearchable(tech, player))
-                .map(tech -> Buttons.green(
-                        player.factionButtonChecker() + "netrunnersProxyTech_" + tech.getAlias(), tech.getName()))
-                .toList();
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        List<Button> buttons = ListTechService.getTechButtons(techs, player);
+        for (int index = 0; index < buttons.size(); index++) {
+            buttons.set(
+                    index,
+                    buttons.get(index)
+                            .withCustomId(player.factionButtonChecker() + "netrunnersProxyTech_"
+                                    + techs.get(index).getAlias()));
+        }
         if (buttons.isEmpty()) return;
-        ButtonHelper.deleteMessage(event);
         MessageHelper.sendMessageToChannelWithButtons(
-                event.getMessageChannel(),
+                player.getCardsInfoThread(),
                 player.getRepresentationUnfogged() + ", choose a technology to research via **Proxy Network**.",
                 ti4.helpers.NewStuffHelper.buttonPagination(
                         buttons, player.factionButtonChecker() + "netrunnersProxyTech_", 0));
+    }
+
+    public static void addProxyNetworkButtons(List<Button> buttons, Game game, StrategyCardModel scModel) {
+        if (game == null || scModel == null || !scModel.usesAutomationForSCID("pok7technology")) return;
+        for (Player player : game.getRealPlayers()) {
+            Button button = getProxyNetworkButton(game, player);
+            if (button != null) buttons.add(button);
+        }
+    }
+
+    public static boolean offerProxyNetworkReminder(Game game, Player player, ButtonInteractionEvent event) {
+        if (game == null || player == null || !player.hasAbility(PROXY_NETWORK_ABILITY)) return false;
+        MessageHelper.sendMessageToChannel(
+                event.getMessageChannel(),
+                player.getRepresentationUnfogged()
+                        + ", use the **Proxy Network** button on the Technology strategy card to resolve this secondary.");
+        return true;
+    }
+
+    private static boolean resolveProxyNetworkTechnologySecondary(
+            Game game, Player player, ButtonInteractionEvent event) {
+        StrategyCardModel scModel =
+                game.getStrategyCardModelByName("technology").orElse(null);
+        if (scModel == null || !scModel.usesAutomationForSCID("pok7technology")) return false;
+        int scNum = scModel.getInitiative();
+        if (player.getSCs().contains(scNum)) {
+            ReactionService.addReaction(
+                    event,
+                    game,
+                    player,
+                    "used **Proxy Network** after playing **Technology** without spending a strategy token.");
+            return true;
+        }
+        if (NetrunnersLeadersHandler.commanderSkipsTechnologySecondaryToken(game, player)) {
+            ReactionService.addReaction(
+                    event,
+                    game,
+                    player,
+                    "used **Tek Mir-un** to follow **Technology** without spending a strategy token.");
+            return true;
+        }
+        ButtonHelperFactionSpecific.resolveVadenSCDebt(player, scNum, game, event);
+        if (player.getStrategicCC() > 0) {
+            ButtonHelperCommanders.resolveMuaatCommanderCheck(player, game, event, "followed **Technology**");
+        }
+        String message = ButtonHelperSCs.deductCC(game, player, scNum);
+        ReactionService.addReaction(event, game, player, message);
+        return true;
     }
 
     /** Replaces a non-faction research with the mandatory Proxy Network technology gain. */
@@ -244,6 +328,34 @@ public class NetrunnersAbilitiesHandler {
     @ButtonHandler("netrunnersProxyTech_")
     public static void chooseProxyNetworkSource(
             Game game, Player player, ButtonInteractionEvent event, String buttonID) {
+        List<TechnologyModel> techs = game.getTechnologyDeck().stream()
+                .map(Mapper::getTech)
+                .filter(java.util.Objects::nonNull)
+                .filter(tech -> tech.getFaction()
+                        .map("netrunners"::equals)
+                        .orElseGet(() -> game.getRealPlayersExcludingThis(player).stream()
+                                .anyMatch(other -> player.getDebtTokenCount(other.getColor(), CONTROL_TOKEN_POOL) > 0
+                                        && tech.getFaction().isEmpty()
+                                        && other.hasTech(tech.getAlias()))))
+                .filter(tech -> !player.hasTech(tech.getAlias()))
+                .filter(tech -> ListTechService.isTechResearchable(tech, player))
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        List<Button> techButtons = ListTechService.getTechButtons(techs, player);
+        for (int index = 0; index < techButtons.size(); index++) {
+            techButtons.set(
+                    index,
+                    techButtons
+                            .get(index)
+                            .withCustomId(player.factionButtonChecker() + "netrunnersProxyTech_"
+                                    + techs.get(index).getAlias()));
+        }
+        String message =
+                player.getRepresentationUnfogged() + ", choose a technology to research via **Proxy Network**.";
+        String buttonPrefix = player.factionButtonChecker() + "netrunnersProxyTech_";
+        if (ti4.helpers.NewStuffHelper.checkAndHandlePaginationChange(
+                event, player.getCardsInfoThread(), techButtons, message, buttonPrefix, buttonID)) {
+            return;
+        }
         String techId = buttonID.replace("netrunnersProxyTech_", "");
         TechnologyModel tech = Mapper.getTech(techId);
         if (tech == null
@@ -265,7 +377,7 @@ public class NetrunnersAbilitiesHandler {
         if (buttons.isEmpty()) return;
         ButtonHelper.deleteMessage(event);
         MessageHelper.sendMessageToChannelWithButtons(
-                event.getMessageChannel(),
+                player.getCardsInfoThread(),
                 player.getRepresentationUnfogged() + ", choose the control token to return for **Proxy Network**.",
                 buttons);
     }

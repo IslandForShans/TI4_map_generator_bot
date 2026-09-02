@@ -18,9 +18,9 @@
     "alias": "netrunners_mimetic_override_1",
     "type": "mods",
     "value": "+1",
-    "persistenceType": "TEMP_ONE_ROUND",
+    "persistenceType": "ONE_ROUND",
     "scope": "netrunners_mimetic",
-    "related": [{"type": "tech", "alias": "benetrunnersmo"}],
+    "related": [{"type": "custom", "alias": "netrunners_mimetic_override"}],
     "forCombatAbility": "combatround"
   }
 ]

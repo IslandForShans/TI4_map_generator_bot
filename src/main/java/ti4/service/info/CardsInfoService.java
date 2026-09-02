@@ -212,7 +212,7 @@ public class CardsInfoService {
         if (player.hasUnexhaustedLeader("crystellumagent")) {
             CrystellumLeadersHandler.addCrystellumAgentCardsInfoButton(buttons, player);
         }
-        if (player.hasUnexhaustedLeader("netrunnersagent")) {
+        if (!"setup".equalsIgnoreCase(game.getPhaseOfGame()) && player.hasUnexhaustedLeader("netrunnersagent")) {
             buttons.add(NetrunnersLeadersHandler.getAgentCardsInfoButton(player));
         }
         if (player.hasUnexhaustedLeader("empyreanagent")) {

@@ -1170,6 +1170,13 @@ public class CombatRollService {
         payloadBuilder.addModifierDisplays(
                 uniqueList, playerUnitsFlat, player, opponent, game, rollType, activeSystem, unitHolder);
 
+        // Mimetic Override selects individual ships, so it must be applied while their unit group is split below.
+        List<NamedCombatModifierModel> mimeticOverrideMods = mods.stream()
+                .filter(modifier -> "netrunners_mimetic_override_1"
+                        .equals(modifier.getModifier().getAlias()))
+                .toList();
+        mods.removeAll(mimeticOverrideMods);
+
         List<NamedCombatModifierModel> cappedDiceModifiers = mods.stream()
                 .filter(modifier -> modifier.getModifier().getMaxDice() != null)
                 .toList();
@@ -1465,7 +1472,32 @@ public class CombatRollService {
                         };
                 List<Die> resultRolls;
                 int[] cappedModifiersByDie = new int[numRolls];
-                if (cappedDiceModifiers.isEmpty()) {
+                int selectedMimeticShips = 0;
+                if (!mimeticOverrideMods.isEmpty()) {
+                    selectedMimeticShips = (int)
+                            java.util.Arrays.stream(game.getStoredValue("netrunnersMimeticUnit" + player.getFaction())
+                                            .split(","))
+                                    .filter(unitModel.getAsyncId()::equals)
+                                    .count();
+                    if ("RestOfUnits".equals(singleUnit) && storedHighestValueUnit.equals(unitModel.getAsyncId())) {
+                        selectedMimeticShips--;
+                    }
+                    selectedMimeticShips = Math.max(0, Math.min(selectedMimeticShips, numOfUnit));
+                }
+                int mimeticOverrideModifier = selectedMimeticShips == 0
+                        ? 0
+                        : CombatModHelper.getCombinedModifierForUnit(
+                                unitModel,
+                                numOfUnit,
+                                mimeticOverrideMods,
+                                player,
+                                opponent,
+                                game,
+                                playerUnitsList,
+                                rollType,
+                                activeSystem,
+                                perUnitHolder);
+                if (cappedDiceModifiers.isEmpty() && mimeticOverrideModifier == 0) {
                     resultRolls = DiceHelper.rollDice(toHit - modifierToHit, numRolls);
                 } else {
                     for (NamedCombatModifierModel cappedModifier : cappedDiceModifiers) {
@@ -1492,6 +1524,10 @@ public class CombatRollService {
                             cappedModifiersByDie[dieIndex] += cappedModifierValue;
                         }
                         cappedDiceRemaining.put(cappedModifier, remainingDice - diceToModify);
+                    }
+                    int mimeticDice = Math.min(selectedMimeticShips * numRollsPerUnit, numRolls);
+                    for (int dieIndex = 0; dieIndex < mimeticDice; dieIndex++) {
+                        cappedModifiersByDie[dieIndex] += mimeticOverrideModifier;
                     }
                     resultRolls = new ArrayList<>();
                     for (int cappedModifier : cappedModifiersByDie) {
@@ -1760,7 +1796,7 @@ public class CombatRollService {
                         ? "on **" + Helper.getPlanetRepresentationNoResInf(p.getName(), game) + "**"
                         : "";
                 List<Integer> modifiersByDie = List.of();
-                if (!cappedDiceModifiers.isEmpty()) {
+                if (!cappedDiceModifiers.isEmpty() || mimeticOverrideModifier != 0) {
                     int displayModifierToHit = modifierToHit;
                     modifiersByDie = new ArrayList<>(java.util.Arrays.stream(cappedModifiersByDie)
                             .map(cappedModifier -> displayModifierToHit + cappedModifier)
@@ -2245,6 +2281,9 @@ public class CombatRollService {
         if (game.getStoredValue("munitionsReserves").equalsIgnoreCase(player.getFaction())
                 && rollType == CombatRollType.combatround) {
             game.setStoredValue("munitionsReserves", "");
+        }
+        if (!mimeticOverrideMods.isEmpty()) {
+            game.removeStoredValue("netrunnersMimeticUnit" + player.getFaction());
         }
         CombatRollPayload payload = payloadBuilder.build(totalHits, totalMisses, maximumHits);
         return new CombatRollResult(result, totalHits, whiff, slam, payload);

@@ -1559,8 +1559,8 @@ public class StartCombatService {
         RevenantLeadersHandler.addRevKryxosHeroButton(buttons, game, p1, p2, tile, isSpaceCombat);
         RevenantLeadersHandler.addRevKryxosHeroButton(buttons, game, p2, p1, tile, isSpaceCombat);
         checkAndAddIncomprehensibleFormButton(game, p1, p2, isSpaceCombat, tile, buttons);
-        NetrunnersAbilitiesHandler.addMimeticOverrideButton(buttons, p1, p2);
-        NetrunnersAbilitiesHandler.addMimeticOverrideButton(buttons, p2, p1);
+        NetrunnersAbilitiesHandler.addMimeticOverrideButton(buttons, p1);
+        NetrunnersAbilitiesHandler.addMimeticOverrideButton(buttons, p2);
 
         if (p1.hasTechReady("sc") || (!game.isFowMode() && p2.hasTechReady("sc"))) {
             if (p1.hasTechReady("sc")) {

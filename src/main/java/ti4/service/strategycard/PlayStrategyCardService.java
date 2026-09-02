@@ -17,6 +17,7 @@ import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 import org.apache.commons.lang3.function.Consumers;
 import ti4.discord.interactions.buttons.Buttons;
 import ti4.discord.interactions.buttons.handlers.actioncards.theodisi.AdministrativeExemptionLLButtonHandler;
+import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.netrunners.NetrunnersAbilitiesHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.theodisi.Aeterna.AeternaAbilityHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.theodisi.Verydith.VerydithPromissoryHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.theodisi.Verydith.VerydithTechHandler;
@@ -207,6 +208,11 @@ public class PlayStrategyCardService {
                         FactionEmojis.Nekro));
             }
 
+            Player proxyNetworkPlayer = Helper.getPlayerFromAbility(game, "proxy_network");
+            if (proxyNetworkPlayer != null && scModel.usesAutomationForSCID("pok7technology") && !game.isFowMode()) {
+                NetrunnersAbilitiesHandler.addProxyNetworkButtons(scButtons, game, scModel);
+            }
+
             Player zealousPlayer = Helper.getPlayerFromAbility(game, "zealousds");
             if (zealousPlayer != null && scModel.usesAutomationForSCID("tf6") && !game.isFowMode()) {
                 scButtons.add(Buttons.gray(
@@ -379,12 +385,6 @@ public class PlayStrategyCardService {
                             player3.getCardsInfoThread(),
                             player3.getRepresentation()
                                     + ", you have been elected as Minister of Sciences, so you do not need to pay resources to research off of technology. ");
-                }
-                if (player3 != player && player3.hasLeaderUnlocked("netrunnerscommander")) {
-                    MessageHelper.sendMessageToChannel(
-                            player3.getCardsInfoThread(),
-                            player3.getRepresentationUnfogged()
-                                    + ", Tek Mir-un, the Netrunners commander, lets you choose to follow **Technology** without spending a command token. Please select Get a Technology rather than Spend A Strategy Token.");
                 }
             }
         }

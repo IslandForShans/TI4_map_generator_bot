@@ -1,5 +1,6 @@
 package ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.netrunners;
 
+import java.util.ArrayList;
 import java.util.List;
 import lombok.experimental.UtilityClass;
 import net.dv8tion.jda.api.components.buttons.Button;
@@ -12,6 +13,7 @@ import ti4.helpers.ButtonHelper;
 import ti4.helpers.NewStuffHelper;
 import ti4.image.Mapper;
 import ti4.message.MessageHelper;
+import ti4.service.tech.ListTechService;
 import ti4.service.tech.PlayerTechService;
 
 @UtilityClass
@@ -67,23 +69,30 @@ public class NetrunnersStartingTechsHandler {
         game.setStoredValue(
                 STARTING_TECH_COUNT + player.getFaction(), Integer.toString(getStartingTechCount(game, player) + 1));
         ButtonHelper.deleteMessage(event);
-        PlayerTechService.getTech(game, player, event, "getTech_" + techId + "__free__comp");
+        PlayerTechService.addTech(event, game, player, techId);
         if (getStartingTechCount(game, player) < 2) {
             sendStartingTechButtons(game, player, event.getMessageChannel());
         }
     }
 
     private static List<Button> getStartingTechButtons(Game game, Player player) {
-        return game.getTechnologyDeck().stream()
+        List<ti4.model.TechnologyModel> techs = game.getTechnologyDeck().stream()
                 .map(Mapper::getTech)
                 .filter(java.util.Objects::nonNull)
                 .filter(tech -> tech.getFaction().isEmpty())
                 .filter(tech -> !player.hasTech(tech.getAlias()))
                 .filter(tech -> game.getRealPlayersExcludingThis(player).stream()
                         .anyMatch(other -> other.hasTech(tech.getAlias())))
-                .map(tech -> Buttons.green(
-                        player.factionButtonChecker() + "netrunnersStartingTech_" + tech.getAlias(), tech.getName()))
-                .toList();
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        List<Button> buttons = ListTechService.getTechButtons(techs, player);
+        for (int index = 0; index < buttons.size(); index++) {
+            buttons.set(
+                    index,
+                    buttons.get(index)
+                            .withCustomId(player.factionButtonChecker() + "netrunnersStartingTech_"
+                                    + techs.get(index).getAlias()));
+        }
+        return buttons;
     }
 
     private static int getStartingTechCount(Game game, Player player) {

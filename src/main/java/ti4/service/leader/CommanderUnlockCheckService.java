@@ -17,6 +17,7 @@ import ti4.helpers.ButtonHelperFactionSpecific;
 import ti4.helpers.FoWHelper;
 import ti4.helpers.Helper;
 import ti4.helpers.Units.UnitType;
+import ti4.image.Mapper;
 import ti4.model.TechnologyModel.TechnologyType;
 import ti4.service.unit.CheckUnitContainmentService;
 
@@ -315,13 +316,15 @@ public class CommanderUnlockCheckService {
                 shouldBeUnlocked = eligiblePlanets >= 4;
             }
             case "netrunners" -> {
-                List<TechnologyType> colorsOwnedByOthers = TechnologyType.mainFour.stream()
-                        .filter(type -> game.getRealPlayersExcludingThis(player).stream()
-                                .anyMatch(other -> ButtonHelper.getNumberOfCertainTypeOfTech(other, type) > 0))
+                List<String> sharedTechs = player.getTechs().stream()
+                        .filter(techId -> game.getRealPlayersExcludingThis(player).stream()
+                                .anyMatch(other -> other.hasTech(techId)))
                         .toList();
-                shouldBeUnlocked = !colorsOwnedByOthers.isEmpty()
-                        && colorsOwnedByOthers.stream()
-                                .allMatch(type -> ButtonHelper.getNumberOfCertainTypeOfTech(player, type) > 0);
+                shouldBeUnlocked = sharedTechs.size() >= 4
+                        && TechnologyType.mainFour.stream().allMatch(type -> sharedTechs.stream()
+                                .map(Mapper::getTech)
+                                .anyMatch(
+                                        tech -> tech != null && tech.getTypes().contains(type)));
             }
             case "natau" -> {
                 int qualifyingSystems = 0;

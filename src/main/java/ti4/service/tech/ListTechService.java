@@ -41,6 +41,10 @@ public class ListTechService {
 
     @ButtonHandler("acquireATechWithSC")
     public void acquireATechWithSC(Player player, Game game, ButtonInteractionEvent event, String buttonID) {
+        if (player.hasAbility("proxy_network")
+                && NetrunnersAbilitiesHandler.offerProxyNetworkReminder(game, player, event)) {
+            return;
+        }
         acquireATechWithResources(event, game, player, true, buttonID.contains("first") || !buttonID.contains("_"));
     }
 
@@ -166,11 +170,6 @@ public class ListTechService {
                 default -> {}
             }
         }
-        Button proxyNetwork = NetrunnersAbilitiesHandler.getProxyNetworkButton(game, player);
-        if (proxyNetwork != null) {
-            buttons.add(proxyNetwork);
-        }
-
         ButtonHelperCommanders.yinCommanderSummary(player, game);
         ButtonHelperCommanders.veldyrCommanderSummary(player, game);
         String message = player.getRepresentation() + ", what type of technology do you wish to get?";
@@ -214,11 +213,6 @@ public class ListTechService {
         } else {
             buttons.add(Buttons.gray("acquireATechWithSC_second", "Get Other Technology"));
         }
-        Button proxyNetwork = NetrunnersAbilitiesHandler.getProxyNetworkButton(game, player);
-        if (proxyNetwork != null) {
-            buttons.add(proxyNetwork);
-        }
-
         String message = player.getRepresentation() + ", please choose which technology you wish to get.";
 
         if (!techType.contains("allTechResearchable")) {

@@ -177,7 +177,7 @@
     "name": "Zor No-ahn",
     "title": "Systems Specialist",
     "abilityWindow": "When any player gains a technology:",
-    "abilityText": "You may exhaust this card to allow that player to return that technology to their technology deck and gain 1 technology in a different color with the same number of prerequisites.",
+    "abilityText": "You may exhaust this card to allow that player to return that technology to their technology deck and gain 1 non-faction technology in a different color with the same number of prerequisites.",
     "unlockCondition": "Always Unlocked",
     "source": "beans"
   },
