@@ -2,7 +2,9 @@ package ti4.discord.interactions.buttons.handlers.unit.monuments;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import ti4.discord.interactions.buttons.Buttons;
@@ -11,8 +13,10 @@ import ti4.game.Game;
 import ti4.game.Planet;
 import ti4.game.Player;
 import ti4.game.Tile;
+import ti4.helpers.AliasHandler;
 import ti4.helpers.ButtonHelper;
 import ti4.helpers.CommandCounterHelper;
+import ti4.helpers.ComponentActionHelper;
 import ti4.helpers.FoWHelper;
 import ti4.helpers.Helper;
 import ti4.helpers.NewStuffHelper;
@@ -25,6 +29,7 @@ import ti4.message.MessageHelper;
 import ti4.model.UnitModel;
 import ti4.service.combat.CombatRollService;
 import ti4.service.emoji.FactionEmojis;
+import ti4.service.emoji.UnitEmojis;
 import ti4.service.game.MonumentsService;
 import ti4.service.unit.AddUnitService;
 import ti4.service.unit.RemoveUnitService;
@@ -40,6 +45,575 @@ public class MonumentsButtonHandler {
     private static final String PLACE_FIREFLY_UNIT = "placeFireflyUnit_";
     private static final String FIREFLY_CHOOSE_ANOTHER_SYSTEM = "fireflyChooseAnotherSystem_";
     private static final String FIREFLY_DONE_PRODUCING = "fireflyDoneProducing";
+    private static final String CHOOSE_SAAR_MONUMENT_SPACE_DOCK = "chooseSaarMonumentSpaceDock";
+    private static final String SELECT_SAAR_MONUMENT_SPACE_DOCK = "selectSaarMonumentSpaceDock_";
+    private static final String SELECT_CENOTAPH_PRODUCTION = "selectCenotaphProduction_";
+    private static final String USE_CENOTAPH = "useCenotaph_";
+    private static final String FINISH_CENOTAPH = "finishCenotaph";
+    private static final String CENOTAPH_SELECTION = "cenotaphSelection_";
+    private static final String USE_QANOJ = "useQanojShieldArray";
+    private static final String USE_YIN_MONUMENT = "useYinMonument";
+    private static final String SELECT_YIN_MONUMENT_DESTINATION = "selectYinMonumentDestination_";
+
+    // Sector KVD-14
+    public static void gainKVDTradeGoods(Game game, Player acPlayer, String actionCardTitle) {
+        if (!game.isMonumentsMode()) {
+            return;
+        }
+        game.getRealPlayers().stream()
+                .filter(owner -> owner != acPlayer)
+                .filter(owner -> MonumentsService.isMonumentOnBoard(game, owner, "yssaril_monument"))
+                .filter(owner -> MonumentsService.getTilesInOrAdjacentToPlayerMonument(game, owner).stream()
+                        .anyMatch(tile -> FoWHelper.playerHasUnitsInSystem(acPlayer, tile)))
+                .forEach(owner -> {
+                    owner.gainTG(2, true);
+                    MessageHelper.sendMessageToChannel(
+                            owner.getCorrectChannel(),
+                            owner.getRepresentation() + " gained 2 trade goods from _Sector KVD-14_ due to "
+                                    + acPlayer.getRepresentation() + " playing " + actionCardTitle + ".");
+                });
+    }
+
+    // The Blessed Sanctum
+    public static boolean canUseYinMonument(Game game, Player player) {
+        if (!MonumentsService.isMonumentReady(game, player, "yin_monument")) {
+            return false;
+        }
+        Tile monumentTile = MonumentsService.getMonumentTile(game, player, "yin_monument");
+        Planet monumentPlanet = monumentTile == null
+                ? null
+                : monumentTile.getPlanetUnitHolders().stream()
+                        .filter(planet -> planet.getUnitCount(UnitType.Monument, player) > 0)
+                        .findFirst()
+                        .orElse(null);
+        return monumentPlanet != null
+                && monumentPlanet.getUnitCount(UnitType.Infantry, player) >= 2
+                && player.getPlanetsAllianceMode().stream()
+                        .anyMatch(planetName -> !planetName.equals(monumentPlanet.getName())
+                                && game.getUnitHolderFromPlanet(planetName) != null);
+    }
+
+    public static Button getYinMonumentButton(Player player) {
+        return Buttons.red(
+                player.factionButtonChecker() + USE_YIN_MONUMENT, "Use The Blessed Sanctum", FactionEmojis.Yin);
+    }
+
+    @ButtonHandler(USE_YIN_MONUMENT)
+    public static void useYinMonument(ButtonInteractionEvent event, Game game, Player player) {
+        if (!canUseYinMonument(game, player) || !MonumentsService.exhaustMonument(game, player, "yin_monument")) {
+            return;
+        }
+        Tile monumentTile = MonumentsService.getMonumentTile(game, player, "yin_monument");
+        Planet monumentPlanet = monumentTile.getPlanetUnitHolders().stream()
+                .filter(planet -> planet.getUnitCount(UnitType.Monument, player) > 0)
+                .findFirst()
+                .orElse(null);
+        if (monumentPlanet == null) {
+            return;
+        }
+        int infantryToMove = monumentPlanet.getUnitCount(UnitType.Infantry, player) / 2;
+        List<Button> buttons = getYinMonumentDestinationButtons(game, player, monumentPlanet.getName(), infantryToMove);
+        String buttonPrefix = player.factionButtonChecker() + SELECT_YIN_MONUMENT_DESTINATION + monumentPlanet.getName()
+                + "|" + infantryToMove + "|";
+        MessageHelper.sendMessageToChannelWithButtons(
+                player.getCorrectChannel(),
+                player.getRepresentationNoPing()
+                        + " exhausted _The Blessed Sanctum_. Choose a destination for 1 infantry (" + infantryToMove
+                        + " remaining).",
+                NewStuffHelper.buttonPagination(buttons, buttonPrefix, 0));
+        ButtonHelper.deleteTheOneButton(event);
+        ComponentActionHelper.serveNextComponentActionButtons(event, game, player);
+    }
+
+    @ButtonHandler(SELECT_YIN_MONUMENT_DESTINATION)
+    public static void selectYinMonumentDestination(
+            ButtonInteractionEvent event, Game game, Player player, String buttonID) {
+        String[] payload =
+                buttonID.substring(SELECT_YIN_MONUMENT_DESTINATION.length()).split("\\|", 3);
+        if (payload.length != 3
+                || !MonumentsService.isMonumentOnBoard(game, player, "yin_monument")
+                || payload[0].equals(payload[2])) {
+            return;
+        }
+        int remaining;
+        try {
+            remaining = Integer.parseInt(payload[1]);
+        } catch (NumberFormatException e) {
+            return;
+        }
+        List<Button> buttons = getYinMonumentDestinationButtons(game, player, payload[0], remaining);
+        String message = player.getRepresentationNoPing()
+                + " exhausted _The Blessed Sanctum_. Choose a destination for 1 infantry (" + remaining
+                + " remaining).";
+        String buttonPrefix =
+                player.factionButtonChecker() + SELECT_YIN_MONUMENT_DESTINATION + payload[0] + "|" + remaining + "|";
+        if (NewStuffHelper.checkAndHandlePaginationChange(
+                event, event.getMessageChannel(), buttons, message, buttonPrefix, buttonID)) {
+            return;
+        }
+        Planet sourcePlanet = game.getUnitHolderFromPlanet(payload[0]);
+        Planet destinationPlanet = game.getUnitHolderFromPlanet(payload[2]);
+        if (sourcePlanet == null
+                || destinationPlanet == null
+                || !player.getPlanetsAllianceMode().contains(destinationPlanet.getName())
+                || sourcePlanet.getUnitCount(UnitType.Monument, player) < 1
+                || remaining < 1) {
+            return;
+        }
+        if (sourcePlanet.getUnitCount(UnitType.Infantry, player) < remaining) {
+            return;
+        }
+        UnitKey infantryKey = Units.getUnitKey(UnitType.Infantry, player.getColor());
+        destinationPlanet.addUnitsWithStates(infantryKey, sourcePlanet.removeUnit(infantryKey, 1));
+        MessageHelper.sendMessageToChannel(
+                player.getCorrectChannel(),
+                player.getRepresentationNoPing() + " moved 1 infantry from "
+                        + sourcePlanet.getRepresentation(game) + " to " + destinationPlanet.getRepresentation(game)
+                        + ".");
+        if (remaining > 1) {
+            int remainingAfterMove = remaining - 1;
+            List<Button> nextButtons =
+                    getYinMonumentDestinationButtons(game, player, sourcePlanet.getName(), remainingAfterMove);
+            String nextPrefix = player.factionButtonChecker() + SELECT_YIN_MONUMENT_DESTINATION + sourcePlanet.getName()
+                    + "|" + remainingAfterMove + "|";
+            MessageHelper.sendMessageToChannelWithButtons(
+                    player.getCorrectChannel(),
+                    player.getRepresentationNoPing() + " choose a destination for 1 infantry (" + remainingAfterMove
+                            + " remaining).",
+                    NewStuffHelper.buttonPagination(nextButtons, nextPrefix, 0));
+        }
+        ButtonHelper.deleteMessage(event);
+    }
+
+    private static List<Button> getYinMonumentDestinationButtons(
+            Game game, Player player, String sourcePlanetName, int remaining) {
+        return player.getPlanetsAllianceMode().stream()
+                .filter(planetName -> !planetName.equals(sourcePlanetName))
+                .filter(planetName -> game.getUnitHolderFromPlanet(planetName) != null)
+                .map(planetName -> Buttons.green(
+                        player.factionButtonChecker() + SELECT_YIN_MONUMENT_DESTINATION + sourcePlanetName + "|"
+                                + remaining + "|" + planetName,
+                        Helper.getPlanetRepresentation(planetName, game)))
+                .toList();
+    }
+
+    // Qanoj Shield Array
+    public static void offerQanojShieldArray(Game game, Player player) {
+        if (!game.isMonumentsMode() || !MonumentsService.isMonumentReady(game, player, "xxcha_monument")) {
+            return;
+        }
+
+        List<Button> buttons = List.of(
+                Buttons.green(
+                        player.factionButtonChecker() + USE_QANOJ, "Exhaust Qanoj Shield Array", FactionEmojis.Xxcha),
+                Buttons.red("deleteButtons", "Decline"));
+
+        MessageHelper.sendMessageToChannelWithButtons(
+                player.getCorrectChannel(),
+                player.getRepresentation()
+                        + ", you may exhaust _Qanoj Shield Array_ to place a structure on a planet you control in "
+                        + MonumentsService.getMonumentTile(game, player, "xxcha_monument")
+                                .getRepresentation() + ".",
+                buttons);
+    }
+
+    @ButtonHandler(USE_QANOJ)
+    public static void resolveQanojShieldArray(ButtonInteractionEvent event, Game game, Player player) {
+        if (!game.isMonumentsMode() || !MonumentsService.isMonumentReady(game, player, "xxcha_monument")) {
+            return;
+        }
+
+        List<Button> buttons = new ArrayList<>();
+
+        for (Planet planet :
+                MonumentsService.getMonumentTile(game, player, "xxcha_monument").getPlanetUnitHolders()) {
+            if (!player.getPlanetsAllianceMode().contains(planet.getName())
+                    || planet.isSpaceStation(game)
+                    || planet.getTokenList().stream().anyMatch(token -> token.contains("dmz"))) {
+                continue;
+            }
+
+            for (String unit : List.of("pds", "sd")) {
+                if ("sd".equals(unit) && planet.getUnitCount(UnitType.Spacedock, player) > 0) {
+                    continue;
+                }
+
+                buttons.add(Buttons.green(
+                        player.factionButtonChecker() + "placeOneNDone_skipbuild_" + unit + "_" + planet.getName(),
+                        " on " + Helper.getPlanetRepresentation(planet.getName(), game),
+                        "pds".equals(unit) ? UnitEmojis.pds : UnitEmojis.spacedock));
+            }
+        }
+        if (buttons.isEmpty() || !MonumentsService.exhaustMonument(game, player, "xxcha_monument")) {
+            return;
+        }
+        MessageHelper.sendMessageToChannelWithButtons(
+                player.getCorrectChannel(),
+                player.getRepresentationNoPing() + " exhausted _Qanoj Shield Array_. Choose a structure to place.",
+                buttons);
+        ButtonHelper.deleteTheOneButton(event);
+    }
+
+    // The Imperial Vault
+    @ButtonHandler("winnuMonumentSpendResources")
+    public static void spendResourcesForWinnuMonument(ButtonInteractionEvent event, Game game, Player player) {
+        if (!game.isMonumentsMode()
+                || !player.hasUnit("winnu_monument")
+                || MonumentsService.isMonumentOnBoard(game, player, "winnu_monument")) {
+            return;
+        }
+
+        List<Button> buttons = ButtonHelper.getExhaustButtonsWithTG(game, player, "res");
+        buttons.add(
+                Buttons.red(player.factionButtonChecker() + "finnishWinnuMonumentSpend", "Done Spending Resources"));
+
+        MessageHelper.sendMessageToChannelWithButtons(
+                player.getCorrectChannel(),
+                player.getRepresentation()
+                        + ", spend any number of resources. For every 3 resources spent, you will place 1 trade good on _The Imperial Vault_.",
+                buttons);
+        ButtonHelper.deleteTheOneButton(event);
+    }
+
+    @ButtonHandler("finnishWinnuMonumentSpend")
+    public static void finnishWinnuMonumentSpend(ButtonInteractionEvent event, Game game, Player player) {
+        if (!game.isMonumentsMode()
+                || !player.hasUnit("winnu_monument")
+                || MonumentsService.isMonumentOnBoard(game, player, "winnu_monument")) {
+            return;
+        }
+
+        int resourcesSpent = player.getSpentTgsThisWindow();
+        for (String spentThing : player.getSpentThingsThisWindow()) {
+            Planet planet = game.getUnitHolderFromPlanet(spentThing);
+            if (planet != null) {
+                resourcesSpent += planet.getResources();
+            }
+        }
+
+        int tradeGoodsToPlace = resourcesSpent / 3;
+        int total = MonumentsService.getWinnuMonumentTradeGoodCount(game, player) + tradeGoodsToPlace;
+        MonumentsService.setWinnuMonumentTradeGoodCount(game, player, total);
+
+        MessageHelper.sendMessageToChannel(
+                player.getCorrectChannel(),
+                Helper.buildSpentThingsMessage(player, game, "res")
+                        + "\n> Placed " + tradeGoodsToPlace + " trade good"
+                        + (tradeGoodsToPlace == 1 ? "" : "s")
+                        + " on _The Imperial Vault_ (" + total + " total).");
+
+        player.resetSpentThings();
+        ButtonHelper.deleteMessage(event);
+    }
+
+    // The Cenotaph
+    public static void offerCenotaph(
+            Game game,
+            Player player,
+            Tile sourceTile,
+            UnitKey infantryKey,
+            String sourcePlanetName,
+            int placedInfantry) {
+        if (player == null
+                || infantryKey.unitType() != UnitType.Infantry
+                || placedInfantry < 1
+                || !MonumentsService.isMonumentReady(game, player, "sol_monument")) {
+            return;
+        }
+
+        Planet sourcePlanet = sourceTile.getUnitHolderFromPlanet(sourcePlanetName);
+        Tile cenotaphTile = MonumentsService.getMonumentTile(game, player, "sol_monument");
+        Planet cenotaphPlanet = cenotaphTile == null
+                ? null
+                : cenotaphTile.getPlanetUnitHolders().stream()
+                        .filter(planet -> planet.getUnitCount(UnitType.Monument, player) > 0)
+                        .findFirst()
+                        .orElse(null);
+        if (sourcePlanet == null || cenotaphPlanet == null || sourcePlanet == cenotaphPlanet) {
+            return;
+        }
+
+        List<Button> buttons = new ArrayList<>();
+        if (placedInfantry >= 1) {
+            buttons.add(Buttons.green(
+                    player.factionButtonChecker() + USE_CENOTAPH + "1|"
+                            + sourceTile.getPosition() + "|"
+                            + sourcePlanetName + "|"
+                            + cenotaphPlanet.getName() + "|" + placedInfantry,
+                    "Move 1 Infantry",
+                    UnitEmojis.infantry));
+        }
+        if (placedInfantry >= 2) {
+            buttons.add(Buttons.green(
+                    player.factionButtonChecker() + USE_CENOTAPH + "2|"
+                            + sourceTile.getPosition() + "|"
+                            + sourcePlanetName + "|"
+                            + cenotaphPlanet.getName() + "|" + placedInfantry,
+                    "Move 2 Infantry",
+                    UnitEmojis.infantry));
+        }
+        buttons.add(Buttons.red(player.factionButtonChecker() + FINISH_CENOTAPH, "Done"));
+        MessageHelper.sendMessageToChannelWithButtons(
+                player.getCorrectChannel(),
+                player.getRepresentationNoPing() + ", you placed infantry on "
+                        + sourcePlanet.getRepresentation(game)
+                        + ". You may exhaust _The Cenotaph_ to place any of those infantry on "
+                        + cenotaphPlanet.getRepresentation(game) + " instead.",
+                buttons);
+    }
+
+    public static void offerCenotaphAfterProduction(Game game, Player player) {
+        if (player == null || !MonumentsService.isMonumentReady(game, player, "sol_monument")) {
+            return;
+        }
+
+        Tile cenotaphTile = MonumentsService.getMonumentTile(game, player, "sol_monument");
+        Planet cenotaphPlanet = cenotaphTile == null
+                ? null
+                : cenotaphTile.getPlanetUnitHolders().stream()
+                        .filter(planet -> planet.getUnitCount(UnitType.Monument, player) > 0)
+                        .findFirst()
+                        .orElse(null);
+        if (cenotaphPlanet == null) {
+            return;
+        }
+
+        Map<String, Integer> infantryByPlanet = new LinkedHashMap<>();
+        for (Map.Entry<String, Integer> entry : player.getCurrentProducedUnits().entrySet()) {
+            String[] producedUnit = entry.getKey().split("_", 3);
+            if (producedUnit.length != 3 || "space".equalsIgnoreCase(producedUnit[2])) {
+                continue;
+            }
+            UnitKey unitKey = Mapper.getUnitKey(AliasHandler.resolveUnit(producedUnit[0]), player.getColor());
+            Tile sourceTile = game.getTileByPosition(producedUnit[1]);
+            Planet sourcePlanet = sourceTile == null ? null : sourceTile.getUnitHolderFromPlanet(producedUnit[2]);
+            if (unitKey.unitType() == UnitType.Infantry && sourcePlanet != null && sourcePlanet != cenotaphPlanet) {
+                infantryByPlanet.merge(
+                        sourceTile.getPosition() + "|" + sourcePlanet.getName(), entry.getValue(), Integer::sum);
+            }
+        }
+        if (infantryByPlanet.isEmpty()) {
+            return;
+        }
+
+        List<Button> buttons = new ArrayList<>();
+        for (Map.Entry<String, Integer> entry : infantryByPlanet.entrySet()) {
+            String[] source = entry.getKey().split("\\|", 2);
+            Tile sourceTile = game.getTileByPosition(source[0]);
+            Planet sourcePlanet = sourceTile == null ? null : sourceTile.getUnitHolderFromPlanet(source[1]);
+            if (sourcePlanet == null) {
+                continue;
+            }
+            buttons.add(Buttons.green(
+                    player.factionButtonChecker() + SELECT_CENOTAPH_PRODUCTION + entry.getValue() + "|"
+                            + entry.getKey(),
+                    "Move Infantry from " + sourcePlanet.getRepresentation(game),
+                    UnitEmojis.infantry));
+        }
+        if (buttons.isEmpty()) return;
+        buttons.add(Buttons.red("deleteButtons", "Done"));
+
+        MessageHelper.sendMessageToChannelWithButtons(
+                player.getCorrectChannel(),
+                player.getRepresentationNoPing()
+                        + ", you may exhaust _The Cenotaph_ to place any infantry produced this build on "
+                        + cenotaphPlanet.getRepresentation(game) + " instead.",
+                buttons);
+    }
+
+    @ButtonHandler(SELECT_CENOTAPH_PRODUCTION)
+    public static void selectCenotaphProduction(
+            ButtonInteractionEvent event, Game game, Player player, String buttonID) {
+        String[] payload =
+                buttonID.substring(SELECT_CENOTAPH_PRODUCTION.length()).split("\\|", 3);
+        if (payload.length != 3) {
+            return;
+        }
+        int placedInfantry;
+        try {
+            placedInfantry = Integer.parseInt(payload[0]);
+        } catch (NumberFormatException e) {
+            return;
+        }
+        Tile sourceTile = game.getTileByPosition(payload[1]);
+        Planet sourcePlanet = sourceTile == null ? null : sourceTile.getUnitHolderFromPlanet(payload[2]);
+        Tile cenotaphTile = MonumentsService.getMonumentTile(game, player, "sol_monument");
+        Planet cenotaphPlanet = cenotaphTile == null
+                ? null
+                : cenotaphTile.getPlanetUnitHolders().stream()
+                        .filter(planet -> planet.getUnitCount(UnitType.Monument, player) > 0)
+                        .findFirst()
+                        .orElse(null);
+        if (sourcePlanet == null || cenotaphPlanet == null || sourcePlanet == cenotaphPlanet) {
+            return;
+        }
+
+        List<Button> buttons = new ArrayList<>();
+        if (placedInfantry >= 1) {
+            buttons.add(Buttons.green(
+                    player.factionButtonChecker() + USE_CENOTAPH + "1|"
+                            + sourceTile.getPosition() + "|"
+                            + sourcePlanet.getName() + "|"
+                            + cenotaphPlanet.getName() + "|" + placedInfantry,
+                    "Move 1 Infantry",
+                    UnitEmojis.infantry));
+        }
+        if (placedInfantry >= 2) {
+            buttons.add(Buttons.green(
+                    player.factionButtonChecker() + USE_CENOTAPH + "2|"
+                            + sourceTile.getPosition() + "|"
+                            + sourcePlanet.getName() + "|"
+                            + cenotaphPlanet.getName() + "|" + placedInfantry,
+                    "Move 2 Infantry",
+                    UnitEmojis.infantry));
+        }
+        buttons.add(Buttons.red(player.factionButtonChecker() + FINISH_CENOTAPH, "Done"));
+        MessageHelper.sendMessageToChannelWithButtons(
+                player.getCorrectChannel(),
+                player.getRepresentationNoPing() + ", choose how many infantry produced on "
+                        + sourcePlanet.getRepresentation(game) + " to place on "
+                        + cenotaphPlanet.getRepresentation(game) + " instead.",
+                buttons);
+        ButtonHelper.deleteMessage(event);
+    }
+
+    @ButtonHandler(USE_CENOTAPH)
+    public static void useCenotaph(ButtonInteractionEvent event, Game game, Player player, String buttonID) {
+        String[] payload = buttonID.substring(USE_CENOTAPH.length()).split("\\|", 5);
+        if (payload.length != 5) {
+            return;
+        }
+
+        int amount;
+        try {
+            amount = Integer.parseInt(payload[0]);
+        } catch (NumberFormatException e) {
+            return;
+        }
+
+        Tile sourceTile = game.getTileByPosition(payload[1]);
+        Planet sourcePlanet = sourceTile == null ? null : sourceTile.getUnitHolderFromPlanet(payload[2]);
+        Tile cenotaphTile = game.getTileFromPlanet(payload[3]);
+        Planet cenotaphPlanet = cenotaphTile == null ? null : cenotaphTile.getUnitHolderFromPlanet(payload[3]);
+        int available;
+        try {
+            available = Integer.parseInt(payload[4]);
+        } catch (NumberFormatException e) {
+            return;
+        }
+
+        String selectionKey = CENOTAPH_SELECTION + player.getFaction();
+        String selection = game.getStoredValue(selectionKey);
+        String context = payload[1] + "|" + payload[2] + "|" + payload[3] + "|" + available;
+        int moved = 0;
+        boolean monumentReady = MonumentsService.isMonumentReady(game, player, "sol_monument");
+        if (!monumentReady) {
+            if (!selection.startsWith(context + "|")) {
+                return;
+            }
+            try {
+                moved = Integer.parseInt(selection.substring(selection.lastIndexOf('|') + 1));
+            } catch (NumberFormatException e) {
+                return;
+            }
+        }
+
+        if (amount < 1
+                || moved + amount > available
+                || sourcePlanet == null
+                || cenotaphPlanet == null
+                || sourcePlanet.getUnitCount(UnitType.Infantry, player) < amount) {
+            return;
+        }
+        if (monumentReady && !MonumentsService.exhaustMonument(game, player, "sol_monument")) {
+            return;
+        }
+
+        UnitKey infantryKey = Units.getUnitKey(UnitType.Infantry, player.getColor());
+        List<Integer> states = sourcePlanet.removeUnit(infantryKey, amount);
+        cenotaphPlanet.addUnitsWithStates(infantryKey, states);
+        game.setStoredValue(selectionKey, context + "|" + (moved + amount));
+
+        MessageHelper.sendMessageToChannel(
+                player.getCorrectChannel(),
+                player.getRepresentationNoPing() + " placed " + amount + " infantry on "
+                        + cenotaphPlanet.getRepresentation(game) + " instead.");
+        if (moved + amount == available) {
+            game.removeStoredValue(selectionKey);
+            ButtonHelper.deleteMessage(event);
+        }
+    }
+
+    @ButtonHandler(FINISH_CENOTAPH)
+    public static void finishCenotaph(ButtonInteractionEvent event, Game game, Player player) {
+        game.removeStoredValue(CENOTAPH_SELECTION + player.getFaction());
+        ButtonHelper.deleteMessage(event);
+    }
+
+    // Beacon of Ragh
+    public static Button getSaarMonumentButton(Player player) {
+        return Buttons.gray(
+                player.factionButtonChecker() + CHOOSE_SAAR_MONUMENT_SPACE_DOCK,
+                "Choose Beacon Space Dock",
+                UnitEmojis.spacedock);
+    }
+
+    @ButtonHandler(CHOOSE_SAAR_MONUMENT_SPACE_DOCK)
+    public static void chooseSaarMonumentSpaceDock(ButtonInteractionEvent event, Game game, Player player) {
+        sendSaarMonumentSpaceDockButtons(game, player, event, false);
+    }
+
+    public static void sendSaarMonumentSpaceDockButtons(
+            Game game, Player player, ButtonInteractionEvent event, boolean monumentWasPlaced) {
+        if (!MonumentsService.isMonumentOnBoard(game, player, "saar_monument")) {
+            return;
+        }
+
+        List<Button> buttons = ButtonHelper.getTilesOfPlayersSpecificUnits(game, player, UnitType.Spacedock).stream()
+                .filter(tile ->
+                        tile.getTileModel() == null || !tile.getTileModel().isHyperlane())
+                .map(tile -> Buttons.green(
+                        player.factionButtonChecker() + SELECT_SAAR_MONUMENT_SPACE_DOCK + tile.getPosition(),
+                        tile.getRepresentationForButtons(game, player),
+                        UnitEmojis.spacedock))
+                .toList();
+
+        if (buttons.isEmpty()) {
+            return;
+        }
+
+        MessageHelper.sendMessageToChannelWithButtons(
+                event.getChannel(),
+                player.getRepresentationUnfogged() + ", choose the space dock adjacent to your _Beacon of Ragh_."
+                        + (monumentWasPlaced
+                                ? " You may change this choice at any time with the button in your Cards Info thread."
+                                : ""),
+                buttons);
+    }
+
+    @ButtonHandler(SELECT_SAAR_MONUMENT_SPACE_DOCK)
+    public static void selectSaarMonumentSpaceDock(
+            ButtonInteractionEvent event, Game game, Player player, String buttonID) {
+        if (!MonumentsService.isMonumentOnBoard(game, player, "saar_monument")) {
+            return;
+        }
+
+        String position = buttonID.substring(SELECT_SAAR_MONUMENT_SPACE_DOCK.length());
+        Tile spaceDockTile = game.getTileByPosition(position);
+        if (spaceDockTile == null
+                || !ButtonHelper.getTilesOfPlayersSpecificUnits(game, player, UnitType.Spacedock)
+                        .contains(spaceDockTile)) {
+            return;
+        }
+
+        game.setStoredValue("saarMonumentSpaceDock_" + player.getFaction(), position);
+        MessageHelper.sendMessageToChannel(
+                player.getCorrectChannel(),
+                player.getRepresentationUnfogged() + " chose "
+                        + spaceDockTile.getRepresentationForButtons(game, player)
+                        + " as adjacent to _Beacon of Ragh_.");
+        ButtonHelper.deleteMessage(event);
+    }
 
     // Glory Furnace
     public static void offerGloryFurnace(Game game, Player player, String planetName) {

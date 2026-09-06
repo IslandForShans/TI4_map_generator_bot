@@ -1,6 +1,7 @@
 package ti4.service.game;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import lombok.experimental.UtilityClass;
 import net.dv8tion.jda.api.components.buttons.Button;
@@ -25,22 +26,12 @@ public class NekroMonumentService {
     }
 
     @ButtonHandler("nekroMonumentCopy")
-    public static void chooseMonumentToCopy(ButtonInteractionEvent event, Game game, Player nekro) {
-        if (!game.isMonumentsMode() || !nekro.hasUnit("nekro_monument")) {
-            return;
-        }
-
-        List<Button> buttons = game.getRealPlayersExcludingThis(nekro).stream()
-                .filter(target -> target.getUnitByBaseType("monument") != null)
-                .map(target -> Buttons.green(
-                        nekro.factionButtonChecker() + "nekroMonumentTarget_" + target.getFaction(),
-                        "Copy " + target.getFactionNameOrColor() + " Monument",
-                        target.getFactionEmojiOrColor()))
-                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
-        if (buttons.isEmpty()) {
-            return;
-        }
-        buttons.add(Buttons.red("declineNekroMonumentCopy", "Decline"));
+    public static void chooseCopyMethod(ButtonInteractionEvent event, Game game, Player nekro) {
+        if (!game.isMonumentsMode() || !nekro.hasUnit("nekro_monument")) return;
+        List<Button> buttons = List.of(
+                Buttons.green(nekro.factionButtonChecker() + "nekroMonumentPlace", "Place Token"),
+                Buttons.blue(nekro.factionButtonChecker() + "nekroMonumentMove", "Move Token"),
+                Buttons.red("declineNekroMonumentCopy", "Decline"));
         MessageHelper.sendMessageToChannelWithButtons(
                 event.getChannel(),
                 nekro.getRepresentationUnfogged()
@@ -54,133 +45,134 @@ public class NekroMonumentService {
         ButtonHelper.deleteMessage(event);
     }
 
-    @ButtonHandler("nekroMonumentTarget_")
-    public static void chooseAssimilatorToken(ButtonInteractionEvent event, Game game, Player nekro, String buttonID) {
-        String faction = buttonID.substring("nekroMonumentTarget_".length());
-        Player target = game.getPlayerFromColorOrFaction(faction);
-        if (!nekro.hasUnit("nekro_monument")
-                || target == null
-                || target == nekro
-                || target.getUnitByBaseType("monument") == null) {
-            return;
-        }
-
-        List<Button> buttons = new java.util.ArrayList<>();
-        boolean movingM = !game.getStoredValue(ASSIMILATOR_M).isEmpty();
-        buttons.add(Buttons.green(
-                nekro.factionButtonChecker() + "nekroMonumentAssimilate_M_" + faction,
-                movingM ? "Move Valefar M" : "Place Valefar M",
-                nekro.getFactionEmoji()));
-        boolean movingZ = !game.getStoredValue(ASSIMILATOR_Z).isEmpty();
-        if (nekro.hasUnlockedBreakthrough("nekrobt") && (hasAvailableZ(game, nekro) || movingZ)) {
-            buttons.add(Buttons.blue(
-                    nekro.factionButtonChecker() + "nekroMonumentAssimilate_Z_" + faction,
-                    movingZ ? "Move Valefar Z" : "Place Valefar Z",
-                    nekro.getFactionEmoji()));
-        } else if (nekro.hasUnlockedBreakthrough("nekrobt")
-                && !game.getStoredValue("valefarZ").isEmpty()) {
-            buttons.add(Buttons.blue(
-                    nekro.factionButtonChecker() + "nekroMonumentMoveZ_" + faction,
-                    "Move Valefar Z",
-                    nekro.getFactionEmoji()));
-        }
+    @ButtonHandler("nekroMonumentPlace")
+    public static void chooseMonumentToPlaceOn(ButtonInteractionEvent event, Game game, Player nekro) {
+        if (!game.isMonumentsMode() || !nekro.hasUnit("nekro_monument")) return;
+        List<Button> buttons = getMonumentTargetButtons(game, nekro, "nekroMonumentPlaceTarget_");
+        if (buttons.isEmpty()) return;
         MessageHelper.sendMessageToChannelWithButtons(
-                event.getChannel(), nekro.getRepresentationUnfogged() + ", choose an assimilator token.", buttons);
+                event.getChannel(), nekro.getRepresentationUnfogged() + ", choose a monument to copy.", buttons);
         ButtonHelper.deleteMessage(event);
     }
 
-    @ButtonHandler("nekroMonumentAssimilate_")
-    public static void resolveAssimilatorPlacement(
-            ButtonInteractionEvent event, Game game, Player nekro, String buttonID) {
-        String payload = buttonID.substring("nekroMonumentAssimilate_".length());
-        int delimiter = payload.indexOf('_');
-        if (delimiter < 1) {
-            return;
+    @ButtonHandler("nekroMonumentPlaceTarget_")
+    public static void chooseTokenToPlace(ButtonInteractionEvent event, Game game, Player nekro, String buttonID) {
+        if (!game.isMonumentsMode() || !nekro.hasUnit("nekro_monument")) return;
+        String faction = buttonID.substring("nekroMonumentPlaceTarget_".length());
+        if (getMonumentTarget(game, nekro, faction) == null) return;
+        List<Button> buttons = new ArrayList<>();
+        if (game.getStoredValue(ASSIMILATOR_M).isEmpty()) {
+            buttons.add(
+                    Buttons.green(nekro.factionButtonChecker() + "nekroMonumentPlace_M_" + faction, "Place Valefar M"));
         }
-        String token = payload.substring(0, delimiter);
-        String faction = payload.substring(delimiter + 1);
-        Player target = game.getPlayerFromColorOrFaction(faction);
-        if (!nekro.hasUnit("nekro_monument")
-                || target == null
-                || target == nekro
-                || target.getUnitByBaseType("monument") == null
-                || !("M".equals(token) || "Z".equals(token))) {
-            return;
+        if (hasAvailableZ(game, nekro) && !getMonumentZFactions(game).contains(faction)) {
+            buttons.add(
+                    Buttons.blue(nekro.factionButtonChecker() + "nekroMonumentPlace_Z_" + faction, "Place Valefar Z"));
         }
-        if ("Z".equals(token)
-                && (!nekro.hasUnlockedBreakthrough("nekrobt")
-                        || (!hasAvailableZ(game, nekro)
-                                && game.getStoredValue(ASSIMILATOR_Z).isEmpty()))) {
-            return;
-        }
-
-        game.setStoredValue("M".equals(token) ? ASSIMILATOR_M : ASSIMILATOR_Z, faction);
-        UnitModel monument = target.getUnitByBaseType("monument");
-        String text = monument == null ? "" : monument.getAbility().orElse("");
-        MessageHelper.sendMessageToChannel(
-                nekro.getCorrectChannel(),
-                nekro.getRepresentationUnfogged() + " placed Valefar " + token + " on "
-                        + target.getRepresentationNoPing() + "'s _"
-                        + (monument == null ? "monument" : monument.getName()) + "_."
-                        + (text.isEmpty() ? "" : "\n> " + text));
-        ButtonHelper.deleteMessage(event);
-    }
-
-    @ButtonHandler("nekroMonumentMoveZ_")
-    public static void chooseValefarZToMove(ButtonInteractionEvent event, Game game, Player nekro, String buttonID) {
-        String targetFaction = buttonID.substring("nekroMonumentMoveZ_".length());
-        Player target = game.getPlayerFromColorOrFaction(targetFaction);
-        if (!nekro.hasUnit("nekro_monument")
-                || target == null
-                || !nekro.hasUnlockedBreakthrough("nekrobt")
-                || target.getUnitByBaseType("monument") == null) {
-            return;
-        }
-
-        List<Button> buttons = java.util.Arrays.stream(
-                        game.getStoredValue("valefarZ").split("\\|"))
-                .filter(faction -> !faction.isEmpty())
-                .map(game::getPlayerFromColorOrFaction)
-                .filter(java.util.Objects::nonNull)
-                .map(source -> Buttons.blue(
-                        nekro.factionButtonChecker() + "nekroMonumentMoveZFrom_" + source.getFaction() + "|"
-                                + targetFaction,
-                        "Move Z From " + source.getFactionNameOrColor(),
-                        source.getFactionEmojiOrColor()))
-                .toList();
+        if (buttons.isEmpty()) return;
         MessageHelper.sendMessageToChannelWithButtons(
                 event.getChannel(),
-                nekro.getRepresentationUnfogged() + ", choose the Valefar Z token to move.",
+                nekro.getRepresentationUnfogged() + ", choose an assimilator token to place.",
                 buttons);
         ButtonHelper.deleteMessage(event);
     }
 
-    @ButtonHandler("nekroMonumentMoveZFrom_")
-    public static void moveValefarZToMonument(ButtonInteractionEvent event, Game game, Player nekro, String buttonID) {
-        String payload = buttonID.substring("nekroMonumentMoveZFrom_".length());
-        int delimiter = payload.indexOf('|');
-        if (delimiter < 1) {
-            return;
+    @ButtonHandler("nekroMonumentPlace_")
+    public static void placeAssimilator(ButtonInteractionEvent event, Game game, Player nekro, String buttonID) {
+        if (!game.isMonumentsMode() || !nekro.hasUnit("nekro_monument")) return;
+        String payload = buttonID.substring("nekroMonumentPlace_".length());
+        int delimiter = payload.indexOf('_');
+        if (delimiter < 1) return;
+        String token = payload.substring(0, delimiter);
+        String faction = payload.substring(delimiter + 1);
+        Player target = getMonumentTarget(game, nekro, faction);
+        if (target == null || !("M".equals(token) || "Z".equals(token))) return;
+        if ("M".equals(token) && !game.getStoredValue(ASSIMILATOR_M).isEmpty()) return;
+        if ("Z".equals(token)
+                && (!hasAvailableZ(game, nekro) || getMonumentZFactions(game).contains(faction))) return;
+        if ("M".equals(token)) {
+            game.setStoredValue(ASSIMILATOR_M, faction);
+        } else {
+            game.setStoredValue(ASSIMILATOR_Z, game.getStoredValue(ASSIMILATOR_Z) + faction + "|");
         }
-        String sourceFaction = payload.substring(0, delimiter);
-        String targetFaction = payload.substring(delimiter + 1);
-        Player target = game.getPlayerFromColorOrFaction(targetFaction);
-        if (!nekro.hasUnit("nekro_monument")
-                || target == null
-                || !nekro.hasUnlockedBreakthrough("nekrobt")
-                || target.getUnitByBaseType("monument") == null
-                || !game.getStoredValue("valefarZ").contains(sourceFaction + "|")) {
-            return;
-        }
+        sendAssimilatorMessage(nekro, target, "placed Valefar " + token + " on");
+        ButtonHelper.deleteMessage(event);
+    }
 
-        game.setStoredValue("valefarZ", game.getStoredValue("valefarZ").replace(sourceFaction + "|", ""));
-        game.setStoredValue(ASSIMILATOR_Z, targetFaction);
-        UnitModel monument = target.getUnitByBaseType("monument");
-        MessageHelper.sendMessageToChannel(
-                nekro.getCorrectChannel(),
-                nekro.getRepresentationUnfogged() + " moved Valefar Z from " + sourceFaction + "'s flagship to "
-                        + target.getRepresentationNoPing() + "'s _"
-                        + (monument == null ? "monument" : monument.getName()) + "_.");
+    @ButtonHandler("nekroMonumentMove")
+    public static void chooseAssimilatorToMove(ButtonInteractionEvent event, Game game, Player nekro) {
+        if (!game.isMonumentsMode() || !nekro.hasUnit("nekro_monument")) return;
+        List<Button> buttons = new ArrayList<>();
+        String mFaction = game.getStoredValue(ASSIMILATOR_M);
+        Player mSource = game.getPlayerFromColorOrFaction(mFaction);
+        if (mSource != null) {
+            buttons.add(Buttons.green(
+                    nekro.factionButtonChecker() + "nekroMonumentMoveTarget_M|" + mFaction,
+                    "Move Valefar M From " + mSource.getFactionNameOrColor()));
+        }
+        for (String faction : getMonumentZFactions(game)) {
+            Player source = game.getPlayerFromColorOrFaction(faction);
+            if (source != null) {
+                buttons.add(Buttons.blue(
+                        nekro.factionButtonChecker() + "nekroMonumentMoveTarget_ZM|" + faction,
+                        "Move Valefar Z From " + source.getFactionNameOrColor()));
+            }
+        }
+        for (String faction : getFlagshipZFactions(game)) {
+            Player source = game.getPlayerFromColorOrFaction(faction);
+            if (source != null) {
+                buttons.add(Buttons.blue(
+                        nekro.factionButtonChecker() + "nekroMonumentMoveTarget_ZF|" + faction,
+                        "Move Valefar Z From " + source.getFactionNameOrColor() + " Flagship"));
+            }
+        }
+        if (buttons.isEmpty()) return;
+        MessageHelper.sendMessageToChannelWithButtons(
+                event.getChannel(),
+                nekro.getRepresentationUnfogged() + ", choose an assimilator token to move.",
+                buttons);
+        ButtonHelper.deleteMessage(event);
+    }
+
+    @ButtonHandler("nekroMonumentMoveTarget_")
+    public static void chooseMonumentToMoveTo(ButtonInteractionEvent event, Game game, Player nekro, String buttonID) {
+        if (!game.isMonumentsMode() || !nekro.hasUnit("nekro_monument")) return;
+        String payload = buttonID.substring("nekroMonumentMoveTarget_".length());
+        int delimiter = payload.indexOf('|');
+        if (delimiter < 1) return;
+        String token = payload.substring(0, delimiter);
+        String source = payload.substring(delimiter + 1);
+        List<Button> buttons =
+                getMonumentTargetButtons(game, nekro, "nekroMonumentRelocate_" + token + "|" + source + "|");
+        if (buttons.isEmpty()) return;
+        MessageHelper.sendMessageToChannelWithButtons(
+                event.getChannel(), nekro.getRepresentationUnfogged() + ", choose where to move that token.", buttons);
+        ButtonHelper.deleteMessage(event);
+    }
+
+    @ButtonHandler("nekroMonumentRelocate_")
+    public static void moveAssimilator(ButtonInteractionEvent event, Game game, Player nekro, String buttonID) {
+        if (!game.isMonumentsMode() || !nekro.hasUnit("nekro_monument")) return;
+        String[] parts = buttonID.substring("nekroMonumentRelocate_".length()).split("\\|", 3);
+        if (parts.length != 3) return;
+        String token = parts[0];
+        String source = parts[1];
+        String targetFaction = parts[2];
+        Player target = getMonumentTarget(game, nekro, targetFaction);
+        if (target == null) return;
+        if ("M".equals(token) && source.equals(game.getStoredValue(ASSIMILATOR_M))) {
+            game.setStoredValue(ASSIMILATOR_M, targetFaction);
+        } else if ("ZM".equals(token) && getMonumentZFactions(game).contains(source)) {
+            game.setStoredValue(
+                    ASSIMILATOR_Z,
+                    game.getStoredValue(ASSIMILATOR_Z).replaceFirst(source + "\\|", "") + targetFaction + "|");
+        } else if ("ZF".equals(token) && getFlagshipZFactions(game).contains(source)) {
+            game.setStoredValue("valefarZ", game.getStoredValue("valefarZ").replaceFirst(source + "\\|", ""));
+            game.setStoredValue(ASSIMILATOR_Z, game.getStoredValue(ASSIMILATOR_Z) + targetFaction + "|");
+        } else {
+            return;
+        }
+        sendAssimilatorMessage(nekro, target, "moved an assimilator token to");
         ButtonHelper.deleteMessage(event);
     }
 
@@ -193,46 +185,83 @@ public class NekroMonumentService {
                         .noneMatch(tile -> ButtonHelper.doesPlayerHaveUnitHere("nekro_monument", player, tile))) {
             return false;
         }
-        return monumentId.equals(getCopiedMonumentId(game, ASSIMILATOR_M))
-                || monumentId.equals(getCopiedMonumentId(game, ASSIMILATOR_Z));
+        return getCopiedMonuments(game, player).stream().anyMatch(monument -> monumentId.equals(monument.getId()));
     }
 
     public static boolean hasAssimilatorOnMonument(Game game, Player player) {
-        if (game == null || player == null) {
-            return false;
-        }
-        return player.getFaction().equals(game.getStoredValue(ASSIMILATOR_M))
-                || player.getFaction().equals(game.getStoredValue(ASSIMILATOR_Z));
+        return game != null
+                && player != null
+                && game.isMonumentsMode()
+                && game.getRealPlayers().stream().anyMatch(nekro -> nekro.hasUnit("nekro_monument"))
+                && (player.getFaction().equals(game.getStoredValue(ASSIMILATOR_M))
+                        || getMonumentZFactions(game).contains(player.getFaction()));
     }
 
     public static List<UnitModel> getCopiedMonuments(Game game, Player player) {
-        if (game == null || player == null || !player.hasUnit("nekro_monument")) {
+        if (game == null || player == null || !game.isMonumentsMode() || !player.hasUnit("nekro_monument"))
             return List.of();
-        }
         List<UnitModel> monuments = new ArrayList<>();
-        for (String token : List.of(ASSIMILATOR_M, ASSIMILATOR_Z)) {
-            UnitModel monument = Mapper.getUnit(getCopiedMonumentId(game, token));
+        List<String> factions = new ArrayList<>(getMonumentZFactions(game));
+        if (!game.getStoredValue(ASSIMILATOR_M).isEmpty()) factions.add(game.getStoredValue(ASSIMILATOR_M));
+        for (String faction : factions) {
+            Player target = game.getPlayerFromColorOrFaction(faction);
+            UnitModel monument = target == null ? null : target.getUnitByBaseType("monument");
             if (monument != null
                     && monuments.stream().noneMatch(existing -> existing.getId().equals(monument.getId()))) {
-                monuments.add(monument);
+                monuments.add(Mapper.getUnit(monument.getId()));
             }
         }
         return monuments;
     }
 
-    private static String getCopiedMonumentId(Game game, String key) {
-        Player target = game.getPlayerFromColorOrFaction(game.getStoredValue(key));
-        UnitModel monument = target == null ? null : target.getUnitByBaseType("monument");
-        return monument == null ? "" : monument.getId();
+    private static List<Button> getMonumentTargetButtons(Game game, Player nekro, String prefix) {
+        if (game == null || nekro == null || !game.isMonumentsMode() || !nekro.hasUnit("nekro_monument")) {
+            return List.of();
+        }
+        return game.getRealPlayersExcludingThis(nekro).stream()
+                .filter(target -> target.getUnitByBaseType("monument") != null)
+                .map(target -> Buttons.green(
+                        nekro.factionButtonChecker() + prefix + target.getFaction(),
+                        "Copy " + target.getFactionNameOrColor() + " Monument",
+                        target.getFactionEmojiOrColor()))
+                .toList();
+    }
+
+    private static Player getMonumentTarget(Game game, Player nekro, String faction) {
+        Player target = game.getPlayerFromColorOrFaction(faction);
+        if (!game.isMonumentsMode()
+                || !nekro.hasUnit("nekro_monument")
+                || target == null
+                || target == nekro
+                || target.getUnitByBaseType("monument") == null) return null;
+        return target;
+    }
+
+    private static List<String> getMonumentZFactions(Game game) {
+        return Arrays.stream(game.getStoredValue(ASSIMILATOR_Z).split("\\|"))
+                .filter(faction -> !faction.isEmpty())
+                .toList();
+    }
+
+    private static List<String> getFlagshipZFactions(Game game) {
+        return Arrays.stream(game.getStoredValue("valefarZ").split("\\|"))
+                .filter(faction -> !faction.isEmpty())
+                .toList();
     }
 
     private static boolean hasAvailableZ(Game game, Player nekro) {
-        int usedOnFlagships =
-                (int) java.util.Arrays.stream(game.getStoredValue("valefarZ").split("\\|"))
-                        .filter(faction -> !faction.isEmpty())
-                        .count();
-        int usedOnMonument = game.getStoredValue(ASSIMILATOR_Z).isEmpty() ? 0 : 1;
-        return usedOnFlagships + usedOnMonument
-                < game.getRealPlayersExcludingThis(nekro).size();
+        int maxTokens = game.isMonumentsMode() && nekro.hasUnit("nekro_monument")
+                ? 7
+                : game.getRealPlayersExcludingThis(nekro).size();
+        return getFlagshipZFactions(game).size() + getMonumentZFactions(game).size() < maxTokens;
+    }
+
+    private static void sendAssimilatorMessage(Player nekro, Player target, String action) {
+        UnitModel monument = target.getUnitByBaseType("monument");
+        String ability = monument.getAbility().orElse("");
+        MessageHelper.sendMessageToChannel(
+                nekro.getCorrectChannel(),
+                nekro.getRepresentationUnfogged() + " " + action + " " + target.getRepresentationNoPing() + "'s _"
+                        + monument.getName() + "_." + (ability.isEmpty() ? "" : "\n> " + ability));
     }
 }

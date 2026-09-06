@@ -31,6 +31,7 @@ import ti4.discord.interactions.buttons.handlers.faction.homebrew.theodisi.Reven
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.theodisi.Veylor.VeylorUnitHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.whispers.kalora.KaloraAbilityHandler;
 import ti4.discord.interactions.buttons.handlers.relics.theodisi.LostLegaciesRelicHandler;
+import ti4.discord.interactions.buttons.handlers.unit.monuments.MonumentsButtonHandler;
 import ti4.discord.interactions.buttons.handlers.unit.monuments.TwilightsFallMonumentsButtonHandler;
 import ti4.discord.interactions.routing.ButtonHandler;
 import ti4.game.Game;
@@ -2054,6 +2055,9 @@ public final class ButtonHelperModifyUnits {
                 AddUnitService.addUnits(event, tile, game, player.getColor(), unitLong + " " + planetName);
                 MonumentsAgendaService.resolveCathedralOfIxthPlacement(game, player, planetName);
                 successMessage = "Placed 1 monument on " + Helper.getPlanetRepresentation(planetName, game) + ".";
+                if (player.hasUnit("saar_monument")) {
+                    MonumentsButtonHandler.sendSaarMonumentSpaceDockButtons(game, player, event, true);
+                }
             }
         } else {
             String producedOrPlaced = "Produced";
@@ -2226,7 +2230,9 @@ public final class ButtonHelperModifyUnits {
                 }
                 if (scModel != null
                         && ("pok4construction".equalsIgnoreCase(scModel.getBotSCAutomationID())
-                                || "monuments4construction".equalsIgnoreCase(scModel.getBotSCAutomationID()))
+                                || (game.isMonumentsMode()
+                                        && ("monuments4construction".equalsIgnoreCase(scModel.getBotSCAutomationID())
+                                                || "monumentstf4".equalsIgnoreCase(scModel.getBotSCAutomationID()))))
                         && game.getScPlayed().containsKey(sc)) {
                     hasConstruction = true;
                     break;
@@ -2236,7 +2242,13 @@ public final class ButtonHelperModifyUnits {
                 for (Integer sc : p2.getSCs()) {
                     StrategyCardModel scModel =
                             game.getStrategyCardModelByInitiative(sc).orElse(null);
-                    if (scModel != null && "te4construction".equalsIgnoreCase(scModel.getBotSCAutomationID())) {
+                    if (scModel != null
+                            && ("te4construction".equalsIgnoreCase(scModel.getBotSCAutomationID())
+                                    || (game.isMonumentsMode()
+                                            && ("monuments4construction"
+                                                            .equalsIgnoreCase(scModel.getBotSCAutomationID())
+                                                    || "monumentstf4"
+                                                            .equalsIgnoreCase(scModel.getBotSCAutomationID()))))) {
                         hasConstruction = true;
                     }
                 }

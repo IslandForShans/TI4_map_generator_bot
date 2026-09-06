@@ -1258,6 +1258,7 @@ public final class AgendaHelper {
                     });
             if (getWinningVoters(winner, game).contains(player) || predictedWinner) {
                 MonumentsButtonHandler.offerJolNarMonumentInfantry(game, player);
+                MonumentsButtonHandler.offerQanojShieldArray(game, player);
             }
         }
         return winningRs;

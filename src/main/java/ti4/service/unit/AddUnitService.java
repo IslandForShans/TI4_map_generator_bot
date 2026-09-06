@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import lombok.experimental.UtilityClass;
 import net.dv8tion.jda.api.events.interaction.GenericInteractionCreateEvent;
+import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.beans.ta.TaUnitHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.theodisi.Myrr.MyrrLeadersHandler;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.theodisi.Thrones.ThronesUnitHandler;
@@ -45,7 +46,7 @@ public class AddUnitService {
                     event, tile, unit.uh().getName(), game);
             Player player = game.getPlayerFromColorOrFaction(unit.unitKey().colorID());
             handlePostAddUnitPlayerEffects(
-                    event, game, tile, unit.unitKey(), unit.uh().getName(), player);
+                    event, game, tile, unit.unitKey(), unit.uh().getName(), player, unit.getTotalRemoved());
 
             String color = unit.unitKey().colorID();
             handleFogOfWar(tile, color, game, unit.unitKey() + " " + unit.getTotalRemoved());
@@ -73,7 +74,8 @@ public class AddUnitService {
             AddPlanetToPlayAreaService.addPlanetToPlayArea(event, tile, parsedUnit.location(), game);
             Player player =
                     game.getPlayerFromColorOrFaction(parsedUnit.unitKey().colorID());
-            handlePostAddUnitPlayerEffects(event, game, tile, parsedUnit.unitKey(), parsedUnit.location(), player);
+            handlePostAddUnitPlayerEffects(
+                    event, game, tile, parsedUnit.unitKey(), parsedUnit.location(), player, parsedUnit.count());
         }
 
         handleFogOfWar(tile, color, game, unitList);
@@ -94,7 +96,8 @@ public class AddUnitService {
             AddPlanetToPlayAreaService.addPlanetToPlayArea(event, tile, parsedUnit.location(), game);
             Player player =
                     game.getPlayerFromColorOrFaction(parsedUnit.unitKey().colorID());
-            handlePostAddUnitPlayerEffects(event, game, tile, parsedUnit.unitKey(), parsedUnit.location(), player);
+            handlePostAddUnitPlayerEffects(
+                    event, game, tile, parsedUnit.unitKey(), parsedUnit.location(), player, parsedUnit.count());
             MyrrLeadersHandler.resolveMyrrCommander(
                     event, game, player, tile, parsedUnit.unitKey(), parsedUnit.location(), parsedUnit.count());
             if (game.isMonumentsMode()
@@ -180,7 +183,8 @@ public class AddUnitService {
             if (parsedUnit.unitKey() == null) {
                 continue;
             }
-            handlePostAddUnitPlayerEffects(event, game, tile, parsedUnit.unitKey(), parsedUnit.location(), player);
+            handlePostAddUnitPlayerEffects(
+                    event, game, tile, parsedUnit.unitKey(), parsedUnit.location(), player, parsedUnit.count());
             if (!first) {
                 unitListBuilder.append(", ");
             }
@@ -224,7 +228,8 @@ public class AddUnitService {
             Tile tile,
             Units.UnitKey unitKey,
             String location,
-            Player player) {
+            Player player,
+            int amount) {
         if (player == null) {
             return;
         }
@@ -239,6 +244,10 @@ public class AddUnitService {
             VeylorUnitHandler.checkVeylorMech(game);
         }
 
+        if (!(event instanceof ButtonInteractionEvent buttonEvent)
+                || !buttonEvent.getComponentId().contains("place_")) {
+            MonumentsButtonHandler.offerCenotaph(game, player, tile, unitKey, location, amount);
+        }
         CommanderUnlockCheckService.checkPlayer(
                 player, "dream", "myrr", "natau", "oblivion", "revenantponthous", "thrones", "crystellum");
     }

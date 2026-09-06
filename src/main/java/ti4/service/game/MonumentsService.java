@@ -29,6 +29,29 @@ import ti4.model.UnitModel;
 @UtilityClass
 public class MonumentsService {
     private static final String EXHAUSTED_MONUMENT_PREFIX = "exhaustedMonument_";
+    private static final String WINNU_MONUMENT_TRADE_GOODS = "winnuMonumentTradeGoods_";
+
+    public static int getWinnuMonumentTradeGoodCount(Game game, Player player) {
+        if (game == null || player == null || !game.isMonumentsMode()) {
+            return 0;
+        }
+        String storedCount = game.getStoredValue(WINNU_MONUMENT_TRADE_GOODS + player.getFaction());
+        if (storedCount.isBlank()) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(storedCount);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    public static void setWinnuMonumentTradeGoodCount(Game game, Player player, int count) {
+        if (game == null || player == null || !game.isMonumentsMode()) {
+            return;
+        }
+        game.setStoredValue(WINNU_MONUMENT_TRADE_GOODS + player.getFaction(), Integer.toString(Math.max(0, count)));
+    }
 
     public static void applyMonuments(Game game) {
         if (!game.isMonumentsMode()) {
@@ -118,7 +141,7 @@ public class MonumentsService {
     }
 
     public static boolean hasMonumentOnBoard(Game game, Player player) {
-        if (game == null || player == null) {
+        if (game == null || player == null || !game.isMonumentsMode()) {
             return false;
         }
         return game.getTileMap().values().stream().anyMatch(tile -> tile.getUnitHolders().values().stream()
@@ -148,6 +171,7 @@ public class MonumentsService {
         UnitModel monument = Mapper.getUnit(monumentId);
         return game != null
                 && player != null
+                && game.isMonumentsMode()
                 && monument != null
                 && monument.getSource() == ComponentSource.monuments
                 && !game.getStoredValue(EXHAUSTED_MONUMENT_PREFIX + player.getFaction() + "_" + monumentId)
@@ -207,7 +231,7 @@ public class MonumentsService {
     }
 
     public static Tile getPlayerMonumentTile(Game game, Player player) {
-        if (game == null || player == null) {
+        if (game == null || player == null || !game.isMonumentsMode()) {
             return null;
         }
         return game.getTileMap().values().stream()
@@ -218,6 +242,9 @@ public class MonumentsService {
     }
 
     public static Tile getMonumentTile(Game game, Player player, String monumentId) {
+        if (game == null || player == null || !game.isMonumentsMode()) {
+            return null;
+        }
         if (isOwnedMonumentOnBoard(game, player, monumentId)) {
             return game.getTileMap().values().stream()
                     .filter(tile -> ButtonHelper.doesPlayerHaveUnitHere(monumentId, player, tile))
@@ -230,6 +257,9 @@ public class MonumentsService {
     }
 
     public static boolean isInOrAdjacentToMonumentSystem(Game game, Player player, String monumentId, Tile tile) {
+        if (game == null || player == null || !game.isMonumentsMode()) {
+            return false;
+        }
         Tile monumentTile = getMonumentTile(game, player, monumentId);
         return monumentTile != null
                 && tile != null
@@ -240,7 +270,7 @@ public class MonumentsService {
     }
 
     public static List<Tile> getTilesInOrAdjacentToPlayerMonument(Game game, Player player) {
-        if (game == null || player == null) {
+        if (game == null || player == null || !game.isMonumentsMode()) {
             return List.of();
         }
         LinkedHashSet<String> systemPositions = new LinkedHashSet<>();

@@ -176,7 +176,8 @@ public class TwilightsFallMonumentsButtonHandler {
     }
 
     public static int getBlueTfMonumentCapacity(Game game, Player player, UnitType unitType, int capacity) {
-        if (capacity != 0
+        if (!game.isMonumentsMode()
+                || capacity != 0
                 || (unitType != UnitType.Destroyer && unitType != UnitType.Cruiser)
                 || !game.getStoredValue(BLUETF_CAPACITY + player.getFaction()).equals(unitType.toString())) {
             return 0;
@@ -788,7 +789,10 @@ public class TwilightsFallMonumentsButtonHandler {
                 });
     }
 
-    public static int getBlacktfCapturedInfantrySpent(Player player) {
+    public static int getBlacktfCapturedInfantrySpent(Game game, Player player) {
+        if (!game.isMonumentsMode() || !player.hasUnit("blacktf_monument")) {
+            return 0;
+        }
         return player.getSpentThingsThisWindow().stream()
                 .filter(thing -> thing.startsWith("blacktfCapturedInfantry_"))
                 .mapToInt(thing -> Integer.parseInt(thing.substring("blacktfCapturedInfantry_".length())))
@@ -803,7 +807,7 @@ public class TwilightsFallMonumentsButtonHandler {
             return;
         }
         RemoveUnitService.removeUnits(event, player.getNomboxTile(), game, player.getColor(), "1 infantry");
-        int spent = getBlacktfCapturedInfantrySpent(player);
+        int spent = getBlacktfCapturedInfantrySpent(game, player);
         player.getSpentThingsThisWindow().stream()
                 .filter(thing -> thing.startsWith("blacktfCapturedInfantry_"))
                 .toList()

@@ -402,6 +402,7 @@ public class PlayerAreaGenerator {
 
         // SECOND ROW RIGHT SIDE (faction tokens)
         xDeltaBottom = honorOrPathTokens(player, xDeltaBottom, yPlayAreaSecondRow);
+        xDeltaBottom = winnuMonumentTradeGoods(player, xDeltaBottom, yPlayAreaSecondRow);
         xDeltaBottom = crimsonRebellionTokens(player, xDeltaBottom, yPlayAreaSecondRow);
         xDeltaBottom = galvanizeTokens(player, xDeltaBottom, yPlayAreaSecondRow);
         xDeltaBottom = theodisiTokenSupplies(player, xDeltaBottom, yPlayAreaSecondRow);
@@ -709,18 +710,24 @@ public class PlayerAreaGenerator {
     }
 
     private int valefarZTokens(Player player, int xDeltaFromRightSide, int yDelta) {
-        if (!player.hasReadyBreakthrough("nekrobt")) {
+        if (!player.hasReadyBreakthrough("nekrobt") && (!game.isMonumentsMode() || !player.hasUnit("nekro_monument"))) {
             return xDeltaFromRightSide;
         }
         String tokenFile = ResourceHelper.getResourceFromFolder("extra/", "marker_valefarZ.png");
         BufferedImage bufferedImage = ImageHelper.read(tokenFile);
-        int tokensUsed = Math.min(
+        int tokensUsed = (int) Math.min(
                 7,
-                (int) Arrays.stream(game.getStoredValue("valefarZ").split("\\|"))
+                Arrays.stream(game.getStoredValue("valefarZ").split("\\|"))
                                 .filter(faction -> !faction.isEmpty())
                                 .count()
-                        + (game.getStoredValue("nekroMonumentAssimilatorZ").isEmpty() ? 0 : 1));
-        int tokenCount = game.getRealPlayers().size() - 1 - tokensUsed;
+                        + Arrays.stream(game.getStoredValue("nekroMonumentAssimilatorZ")
+                                        .split("\\|"))
+                                .filter(faction -> !faction.isEmpty())
+                                .count());
+        int maxTokens = game.isMonumentsMode() && player.hasUnit("nekro_monument")
+                ? 7
+                : game.getRealPlayers().size() - 1;
+        int tokenCount = Math.max(0, maxTokens - tokensUsed);
         List<Point> points = new ArrayList<>();
         IntStream.range(0, tokenCount).forEach(i -> points.add(new Point(i * 35, 25 * ((i + 1) % 2))));
 
@@ -934,6 +941,20 @@ public class PlayerAreaGenerator {
                     yDelta + 150);
         }
         return xDeltaFromRightSide + 200;
+    }
+
+    private int winnuMonumentTradeGoods(Player player, int xDeltaFromRightSide, int yDelta) {
+        if (!game.isMonumentsMode()
+                || (!player.hasUnit("winnu_monument")
+                        && !MonumentsService.isMonumentOnBoard(game, player, "winnu_monument"))) {
+            return xDeltaFromRightSide;
+        }
+        DrawingUtil.superDrawStringCenteredDefault(
+                graphics,
+                "Vault Trade Goods: " + MonumentsService.getWinnuMonumentTradeGoodCount(game, player),
+                mapWidth - xDeltaFromRightSide - 300,
+                yDelta + 125);
+        return xDeltaFromRightSide + 300;
     }
 
     private int creussWormholeTokens(Player player, int xDeltaSecondRowFromRightSide, int yPlayAreaSecondRow) {

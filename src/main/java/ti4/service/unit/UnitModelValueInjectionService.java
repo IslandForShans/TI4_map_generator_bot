@@ -7,8 +7,8 @@ import java.util.Objects;
 import lombok.experimental.UtilityClass;
 import ti4.discord.interactions.buttons.handlers.faction.homebrew.theodisi.Aeterna.AeternaUnitsHandler;
 import ti4.game.Player;
+import ti4.helpers.ButtonHelper;
 import ti4.helpers.Units.UnitType;
-import ti4.image.Mapper;
 import ti4.model.UnitModel;
 import ti4.service.game.NekroMonumentService;
 
@@ -21,33 +21,6 @@ public class UnitModelValueInjectionService {
 
         UnitValueInjection values = getPlayerUnitValueInjection(player, unit);
         UnitModel injectedUnit = values.isEmpty() ? unit : injectValues(unit, values);
-        if (player.getGame().isMonumentsMode() && "pinktf_monument".equals(unit.getId())) {
-            if (injectedUnit == unit) {
-                injectedUnit = copyUnit(unit);
-            }
-            String baseAbility = unit.getAbility().orElse("");
-            int copiedAbilityStart = baseAbility.indexOf("\n\n**");
-            if (copiedAbilityStart >= 0) {
-                baseAbility = baseAbility.substring(0, copiedAbilityStart);
-            }
-            String copiedAbilities = player.getUnitsOwned().stream()
-                    .map(Mapper::getUnit)
-                    .filter(Objects::nonNull)
-                    .filter(UnitModel::getIsGroundForce)
-                    .filter(groundForce -> !"pinktf_monument".equals(groundForce.getId()))
-                    .filter(groundForce -> groundForce
-                            .getAbility()
-                            .filter(ability -> !ability.toUpperCase().contains("DEPLOY:"))
-                            .isPresent())
-                    .map(groundForce -> "**" + groundForce.getName() + "**: "
-                            + groundForce.getAbility().orElseThrow())
-                    .collect(java.util.stream.Collectors.joining("\n"));
-            if (!copiedAbilities.isEmpty()) {
-                injectedUnit.setAbility(baseAbility + "\n\n" + copiedAbilities);
-            } else {
-                injectedUnit.setAbility(baseAbility);
-            }
-        }
         if (player.getGame().isMonumentsMode() && "nekro_monument".equals(unit.getId())) {
             if (injectedUnit == unit) {
                 injectedUnit = copyUnit(unit);
@@ -173,6 +146,7 @@ public class UnitModelValueInjectionService {
     // TODO: Add TF Nomad FS, 3 TF Mechs, TK Xxcha flag, Lightrail, PinkTF Flagship
     private UnitValueInjection getPlayerUnitValueInjection(Player player, UnitModel unit) {
         IntegerValueInjection integers = IntegerValueInjection.create();
+        FloatValueInjection floats = FloatValueInjection.create();
         BooleanValueInjection booleans = BooleanValueInjection.create();
 
         if (player.hasTech("tharcanumpmy")
@@ -188,49 +162,14 @@ public class UnitModelValueInjectionService {
             }
         }
 
-        if (player.getGame().isMonumentsMode() && "pinktf_monument".equals(unit.getId())) {
-            List<UnitModel> groundForces = player.getUnitsOwned().stream()
-                    .map(Mapper::getUnit)
-                    .filter(Objects::nonNull)
-                    .filter(UnitModel::getIsGroundForce)
-                    .filter(groundForce -> !"pinktf_monument".equals(groundForce.getId()))
-                    .toList();
-            int production = groundForces.stream()
-                    .mapToInt(UnitModel::getProductionValue)
-                    .max()
-                    .orElse(0);
-            UnitModel afbUnit = groundForces.stream()
-                    .max((first, second) -> Integer.compare(
-                            first.getAfbDieCount() * (10 - first.getAfbHitsOn()),
-                            second.getAfbDieCount() * (10 - second.getAfbHitsOn())))
-                    .orElse(null);
-            UnitModel bombardUnit = groundForces.stream()
-                    .max((first, second) -> Integer.compare(
-                            first.getBombardDieCount() * (10 - first.getBombardHitsOn()),
-                            second.getBombardDieCount() * (10 - second.getBombardHitsOn())))
-                    .orElse(null);
-            UnitModel spaceCannonUnit = groundForces.stream()
-                    .max((first, second) -> Integer.compare(
-                            first.getSpaceCannonDieCount() * (10 - first.getSpaceCannonHitsOn()),
-                            second.getSpaceCannonDieCount() * (10 - second.getSpaceCannonHitsOn())))
-                    .orElse(null);
-            int afbDice = afbUnit == null ? 0 : afbUnit.getAfbDieCount();
-            int afbHitsOn = afbUnit == null ? 0 : afbUnit.getAfbHitsOn();
-            int bombardDice = bombardUnit == null ? 0 : bombardUnit.getBombardDieCount();
-            int bombardHitsOn = bombardUnit == null ? 0 : bombardUnit.getBombardHitsOn();
-            int spaceCannonDice = spaceCannonUnit == null ? 0 : spaceCannonUnit.getSpaceCannonDieCount();
-            int spaceCannonHitsOn = spaceCannonUnit == null ? 0 : spaceCannonUnit.getSpaceCannonHitsOn();
-            integers.productionValue(production - unit.getProductionValue());
-            integers.afbDieCount(afbDice - unit.getAfbDieCount()).afbHitsOn(afbHitsOn - unit.getAfbHitsOn());
-            integers.bombardDieCount(bombardDice - unit.getBombardDieCount())
-                    .bombardHitsOn(bombardHitsOn - unit.getBombardHitsOn());
-            integers.spaceCannonDieCount(spaceCannonDice - unit.getSpaceCannonDieCount())
-                    .spaceCannonHitsOn(spaceCannonHitsOn - unit.getSpaceCannonHitsOn());
-            booleans.sustainDamage(groundForces.stream().anyMatch(UnitModel::getSustainDamage))
-                    .planetaryShield(groundForces.stream().anyMatch(UnitModel::getPlanetaryShield))
-                    .deepSpaceCannon(groundForces.stream().anyMatch(UnitModel::getDeepSpaceCannon))
-                    .disablesPlanetaryShield(groundForces.stream().anyMatch(UnitModel::getDisablesPlanetaryShield))
-                    .canBeDirectHit(groundForces.stream().anyMatch(UnitModel::getCanBeDirectHit));
+        if (player.getGame().isMonumentsMode()
+                && "pinktf_monument".equals(unit.getId())
+                && player.getGame().getTileMap().values().stream()
+                        .anyMatch(tile -> ButtonHelper.doesPlayerHaveUnitHere("pinktf_monument", player, tile))) {
+            booleans.isGroundForce(true).isPlanetOnly(false).isSpaceOnly(false);
+            if (player.hasUnit("tf-valefarprime")) {
+                floats.cost(-1);
+            }
         }
 
         if (player.hasAbility("evolved_warforms") && unit.getUnitType() == UnitType.Mech) {
@@ -250,7 +189,7 @@ public class UnitModelValueInjectionService {
                     .canBeDirectHit(true);
         }
 
-        return UnitValueInjection.of(integers, null, booleans);
+        return UnitValueInjection.of(integers, floats, booleans);
     }
 
     public UnitModel injectValues(UnitModel unit, UnitValueInjection values) {

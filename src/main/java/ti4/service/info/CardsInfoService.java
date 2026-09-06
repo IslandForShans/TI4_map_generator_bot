@@ -505,6 +505,9 @@ public class CardsInfoService {
         if (player.hasRelicReady("economicboon") && player.getExhaustedPlanets().size() > 0) {
             buttons.add(LostLegaciesRelicHandler.getEconomicBoonCardsInfoButton(player));
         }
+        if (MonumentsService.isMonumentOnBoard(game, player, "saar_monument")) {
+            buttons.add(MonumentsButtonHandler.getSaarMonumentButton(player));
+        }
         buttons.add(Buttons.gray("offerPlayerPref", "Player Settings"));
         buttons.add(Buttons.gray("searchMyGames", "List My Games"));
         buttons.add(Buttons.green("showObjInfo_both", "Scoring Info"));

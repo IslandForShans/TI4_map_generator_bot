@@ -1819,7 +1819,7 @@ public final class Helper {
                         .append(discount)
                         .append('\n');
             }
-            int blacktfInfantry = TwilightsFallMonumentsButtonHandler.getBlacktfCapturedInfantrySpent(player);
+            int blacktfInfantry = TwilightsFallMonumentsButtonHandler.getBlacktfCapturedInfantrySpent(game, player);
             if (blacktfInfantry > 0) {
                 res += blacktfInfantry;
                 msg.append("> Spent ")
@@ -2566,7 +2566,9 @@ public final class Helper {
                     }
                 }
                 totalUnits += entry.getValue();
-                if (player.hasUnit("tf-valefarprime") && removedUnit.getUnitType() == UnitType.Mech) {
+                if (player.hasUnit("tf-valefarprime")
+                        && (removedUnit.getUnitType() == UnitType.Mech
+                                || (game.isMonumentsMode() && "pinktf_monument".equals(removedUnit.getId())))) {
                     cost -= entry.getValue();
                 }
             }
